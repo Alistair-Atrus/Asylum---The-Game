@@ -1,0 +1,4691 @@
+---
+
+<!doctype html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Asylum: A Text Adventure</title>
+<style>
+  :root {
+    --bg: #0d0e12;
+    --panel: #16181f;
+    --panel2: #1c1f28;
+    --ink: #d8d3c4;
+    --dim: #8b8778;
+    --accent: #c9a86a;
+    --accent2: #7fa8c9;
+    --line: #2a2e3a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  header {
+    text-align: center;
+    border-bottom: 1px solid var(--line);
+    padding: 4px 0 10px;
+  }
+  header #location {
+    font-size: 0.85rem;
+    color: var(--dim);
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+  }
+
+  /* ---- main text scroll area ---- */
+  #story {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    scroll-behavior: smooth;
+  }
+  #story p { margin: 0 0 0.9em; }
+  .room-title { color: var(--accent); font-style: italic; }
+  .narration { color: var(--ink); }
+  .system { color: var(--dim); font-style: italic; }
+  .speech { color: var(--accent2); font-style: italic; }
+  .choice-picked { color: var(--accent); }
+  .old { opacity: 0.55; }
+
+  /* ---- choice buttons (dialogue) ---- */
+  #choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #choices button {
+    font-family: inherit;
+    font-size: 0.95rem;
+    background: var(--panel2);
+    color: var(--ink);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    text-align: left;
+  }
+  #choices button:hover { background: var(--accent); color: #14130d; }
+
+  /* ---- command line ---- */
+  #inputrow { display: flex; gap: 8px; }
+  #cmd {
+    flex: 1;
+    font-family: inherit;
+    font-size: 1rem;
+    background: var(--panel2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    outline: none;
+  }
+  #cmd:focus { border-color: var(--accent); }
+  #go { font-family: inherit; }
+
+  /* ---- compass + controls ---- */
+  #controls {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 4px 0;
+  }
+  #compass {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(3, 44px);
+    gap: 4px;
+  }
+  .dir {
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: var(--panel2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .dir.active { border-color: var(--accent); color: var(--accent); }
+  .dir:disabled { opacity: 0.25; cursor: default; }
+  .dir:not(:disabled):hover { background: var(--accent); color: #14130d; }
+
+  #sidebtns {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 6px;
+  }
+
+  .wide {
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: var(--panel2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    min-width: 110px;
+  }
+  .wide:hover { border-color: var(--accent); }
+  .wide:disabled { opacity: 0.35; cursor: default; }
+  .wide:disabled:hover { border-color: var(--line); }
+
+  /* small save/load buttons, bottom right of the button zone */
+  #savebar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 0 2px 2px;
+  }
+  .mini {
+    font-family: inherit;
+    font-size: 0.72rem;
+    background: var(--panel2);
+    color: var(--dim);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 3px 9px;
+    cursor: pointer;
+  }
+  .mini:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---- inventory + grimoire windows ---- */
+  #invwin, #grimwin {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  #invwin[hidden], #grimwin[hidden] { display: none; }
+  #invbox, #grimbox {
+    width: min(90vw, 480px);
+    height: min(80vh, 520px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+  #invhead, #grimhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+  }
+  #invclose, #grimclose {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--dim);
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 2px 8px;
+    font-family: inherit;
+  }
+  #invclose:hover, #grimclose:hover { border-color: var(--accent); color: var(--accent); }
+
+  #invtabs, #grimtabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 10px 0;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .tabbtn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    background: none;
+    color: var(--dim);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    padding: 6px 10px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+  }
+  .tabbtn.active {
+    color: var(--accent);
+    border-color: var(--line);
+    background: var(--panel2);
+  }
+  .tablist {
+    flex: 1;
+    overflow-y: auto;
+    margin: 0; padding: 10px 14px 14px 26px;
+    color: var(--dim);
+    font-size: 0.9rem;
+  }
+  .tablist li { cursor: pointer; padding: 2px 0; }
+  .tablist li:hover { color: var(--accent); }
+
+  @media (max-width: 600px) {
+    #invbox, #grimbox {
+      width: 94vw;
+      height: 85vh;
+    }
+    .tabbtn { padding: 6px 8px; }
+  }
+
+  .glyphrow {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* hand picker */
+  #handwin {
+    position: fixed; inset: 0; z-index: 15;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #handwin[hidden] { display: none; }
+  #handbox {
+    width: min(86vw, 340px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    text-align: center;
+  }
+  #handtitle {
+    color: var(--accent); letter-spacing: 0.1em;
+    text-transform: uppercase; font-size: 0.85rem; margin-bottom: 8px;
+  }
+  #handbody { color: var(--ink); font-size: 0.9rem; line-height: 1.4; margin-bottom: 12px; }
+  #handbtns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  #handbtns .wide { min-width: 120px; }
+
+  /* glyph tooltip: 1s hover on desktop, 1s long-press on mobile */
+  #glyphtip {
+    position: fixed;
+    display: none;
+    max-width: 300px;
+    padding: 8px 12px;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--dim);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    z-index: 20;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ---- journal window ---- */
+  #journal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  #journal[hidden] { display: none; }
+  #journalbox {
+    width: min(90vw, 600px);
+    height: min(80vh, 520px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+  #journalhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+  }
+  #journalclose {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 2px 8px;
+  }
+  #journalclose:hover { border-color: var(--accent); }
+  #journaltext {
+    flex: 1;
+    margin: 12px;
+    padding: 12px;
+    background: var(--panel2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+  }
+  #journaltext:focus { border-color: var(--accent); }
+  #journalfoot {
+    text-align: center;
+    color: var(--dim);
+    font-size: 0.75rem;
+    padding: 0 0 10px;
+    font-style: italic;
+  }
+
+  /* ---- OpenDyslexic (dyslexic mode) ---- */
+  /* Four OpenType files ship in the fonts/ folder; bold and italic
+     are real font files, not synthesized by the browser */
+  @font-face {
+    font-family: "OpenDyslexic";
+    src: url("fonts/OpenDyslexic-Regular.otf") format("opentype");
+    font-weight: normal; font-style: normal;
+  }
+  @font-face {
+    font-family: "OpenDyslexic";
+    src: url("fonts/OpenDyslexic-Bold.otf") format("opentype");
+    font-weight: bold; font-style: normal;
+  }
+  @font-face {
+    font-family: "OpenDyslexic";
+    src: url("fonts/OpenDyslexic-Italic.otf") format("opentype");
+    font-weight: normal; font-style: italic;
+  }
+  @font-face {
+    font-family: "OpenDyslexic";
+    src: url("fonts/OpenDyslexic-BoldItalic.otf") format("opentype");
+    font-weight: bold; font-style: italic;
+  }
+  body.dys { font-family: "OpenDyslexic", Georgia, 'Times New Roman', serif; }
+  /* bold in OpenDyslexic is subtle — lift those words a shade
+     lighter so interactables still stand out */
+  body.dys b { color: #f4eddb; }
+
+  /* ---- title screen ---- */
+  #titlescreen {
+    position: fixed; inset: 0; z-index: 20;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 18px; cursor: pointer; padding: 20px;
+  }
+  #titlescreen[hidden] { display: none; }
+  #titleword {
+    color: var(--accent);
+    font-size: clamp(2rem, 8vw, 4rem);
+    letter-spacing: 0.3em;
+    margin: 0 0 0 0.3em; /* balance the tracking */
+    font-weight: normal;
+  }
+  #titlesub {
+    color: var(--ink); letter-spacing: 0.22em;
+    text-transform: uppercase; font-size: 0.9rem;
+  }
+  #titleprompt {
+    color: var(--dim); font-size: 0.8rem;
+    animation: titleblink 1.8s infinite;
+  }
+  @keyframes titleblink { 50% { opacity: 0.25; } }
+  #dysbtn {
+    margin-top: 34px;
+    background: var(--panel); color: var(--dim);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 8px 18px; font-size: 0.8rem;
+    letter-spacing: 0.08em; cursor: pointer;
+  }
+  #dysbtn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ---- stat HUD: coherence & alignment, always visible ---- */
+  #hud {
+    position: static; margin: 6px auto 0; width: fit-content;
+    background: rgba(13, 14, 18, 0.88);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 12px; font-size: 0.78rem;
+    color: var(--dim); letter-spacing: 0.06em;
+  }
+  #hud b { color: var(--accent); font-weight: normal; }
+  #hud.low b { color: #d98a8a; }
+
+  @media (max-width: 600px) {
+    body { font-size: 16px; }
+    #compass { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 40px); }
+    .wide { min-width: 90px; }
+    /* HUD flows under the room name instead of overlapping it */
+    #hud { padding: 4px 9px; font-size: 0.72rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- title screen -->
+<div id="titlescreen">
+  <div id="titleword">ASYLUM</div>
+  <div id="titlesub">A text adventure game</div>
+  <div id="titleprompt">Press any key to begin</div>
+  <button id="dysbtn">Dyslexic mode: OFF</button>
+</div>
+<div id="app">
+  <header>
+    <div id="location"></div>
+    <div id="hud"><b id="hudcp"></b> · <b id="hudap"></b> · <b id="hudres"></b></div>
+  </header>
+
+  <div id="story"></div>
+
+  <div id="choices"></div>
+
+  <div id="controls">
+    <div id="compass">
+      <span></span><button class="dir" id="d-n" data-dir="n">N</button><span></span>
+      <button class="dir" id="d-w" data-dir="w">W</button>
+      <span></span>
+      <button class="dir" id="d-e" data-dir="e">E</button>
+      <span></span><button class="dir" id="d-s" data-dir="s">S</button><span></span>
+    </div>
+    <div id="sidebtns">
+      <button class="wide" id="invbtn">Inventory</button>
+      <button class="wide" id="grimbtn">Grimoire</button>
+      <button class="wide" id="lookbtn">Look around</button>
+      <button class="wide" id="journalbtn">Journal</button>
+    </div>
+  </div>
+
+  <div id="savebar">
+    <button class="mini" id="savebtn">Save game</button>
+    <button class="mini" id="loadbtn">Load game</button>
+  </div>
+
+  <div id="inputrow">
+    <input id="cmd" autocomplete="off" spellcheck="false"
+           placeholder="What will you do?" />
+    <button class="wide" id="go">Do it</button>
+  </div>
+</div>
+
+<!-- journal window -->
+<div id="journal" hidden>
+  <div id="journalbox">
+    <div id="journalhead">
+      <span>Journal</span>
+      <button id="journalclose" title="Close">✕</button>
+    </div>
+    <textarea id="journaltext"
+      placeholder="Your own notes. Whatever you write here is kept."></textarea>
+    <div id="journalfoot">Saved automatically.</div>
+  </div>
+</div>
+
+<!-- inventory window: notes, items, consumables, crystals -->
+<div id="invwin" hidden>
+  <div id="invbox">
+    <div id="invhead">
+      <span>Inventory</span>
+      <button id="invclose" title="Close">✕</button>
+    </div>
+    <div id="invtabs">
+      <button class="tabbtn active" data-tab="invtab_items">Items</button>
+      <button class="tabbtn" data-tab="invtab_notes">Notes</button>
+      <button class="tabbtn" data-tab="invtab_consum">Consumables</button>
+      <button class="tabbtn" data-tab="invtab_crystal">Crystals</button>
+    </div>
+    <ul id="invtab_items" class="tablist"></ul>
+    <ul id="invtab_notes" class="tablist" hidden></ul>
+    <ul id="invtab_consum" class="tablist" hidden></ul>
+    <ul id="invtab_crystal" class="tablist" hidden></ul>
+  </div>
+</div>
+
+<!-- glyph description tooltip: must live at page level, outside any
+     window, so it shows while the grimoire is open -->
+<div id="glyphtip"></div>
+
+<!-- hand picker: opened by clicking a holdable item in the inventory -->
+<div id="handwin" hidden>
+  <div id="handbox">
+    <div id="handtitle"></div>
+    <div id="handbody"></div>
+    <div id="handbtns"></div>
+  </div>
+</div>
+
+<!-- grimoire window: offensive, defensive, field -->
+<div id="grimwin" hidden>
+  <div id="grimbox">
+    <div id="grimhead">
+      <span>Grimoire</span>
+      <button id="grimclose" title="Close">✕</button>
+    </div>
+    <div id="grimtabs">
+      <button class="tabbtn active" data-tab="grimtab_off">Offensive</button>
+      <button class="tabbtn" data-tab="grimtab_def">Defensive</button>
+      <button class="tabbtn" data-tab="grimtab_field">Field</button>
+    </div>
+    <ul id="grimtab_off" class="tablist"></ul>
+    <ul id="grimtab_def" class="tablist" hidden></ul>
+    <ul id="grimtab_field" class="tablist" hidden></ul>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PART 1 — YOUR STORY DATA  (everything you write goes here)
+   ============================================================
+
+   HOW TO WRITE, IN SHORT:
+   - ROOMS: one entry per place. "exits" link rooms together.
+   - ITEMS: things the player can examine and (sometimes) take.
+   - NPCS: characters. Talking to one triggers a DIALOGUE.
+   - DIALOGUES: branching conversations with numbered choices.
+   - TRIGGERS: reactions to "use X", "open X", custom words.
+
+   Text can be plain, or an array of paragraphs. You can use
+   [b]bold[/b] and [i]italic[/i] markers if you like.
+   ============================================================ */
+
+const GAME_TITLE = "Asylum: A Text Adventure"; // reserved for the future title screen
+
+const ROOMS = {
+
+  // ------------------------------------------------------------
+  // THE ATRIUM — the game's starting room
+  // ------------------------------------------------------------
+  mansion_atrium: {
+    name: "The Atrium",
+    desc: [
+      "You find yourself standing in the atrium of an extravagant " +
+      "mansion. A gold and glass [b]chandelier[/b] hangs above the room.",
+      "To the south is a grand staircase with rich mahogany steps " +
+      "leading up to the second floor. To the east and west, corridors " +
+      "branch off in different directions — you can't see where they " +
+      "lead. To the north is a set of great mahogany [b]doors[/b] with " +
+      "iron hardware."
+    ],
+    exits: {
+      north: {
+        to: "great_hall",          // room behind the doors (to be written)
+        requires: "future_key",    // the item that unlocks them (TBD)
+        lockedMsg: "The doors are large and heavy. Ornate carvings of " +
+                   "vines run along the surface of the wood. You try to " +
+                   "push them open, but they're locked shut.",
+        unlockedMsg: null
+      },
+      south: { to: "staircase_landing" },
+      east:  { to: "east_corridor" },
+      west:  { to: "ballroom" }
+    }
+  },
+
+  // ------------------------------------------------------------
+  // SOUTH — the grand staircase, halfway up
+  // ------------------------------------------------------------
+  staircase_landing: {
+    name: "The Grand Staircase",
+    desc: [
+      "You walk halfway up the stairs, to the point where they split " +
+      "off to the east and west wings of the second floor of the " +
+      "mansion. In front of you is a shelf with a " +
+      "[b]crystal ball[/b]."
+    ],
+    exits: {
+      north: { to: "mansion_atrium" },  // 'down' the stairs back to the atrium
+      east:  { to: "east_wing" }         // 'left' at the top, into the east wing
+    }
+  },
+
+  // ------------------------------------------------------------
+  // SECOND FLOOR, EAST — the walkway over the atrium
+  // ------------------------------------------------------------
+  east_wing: {
+    name: "East Wing",
+    desc: [
+      "You take a left up the stairs and enter the east wing of the " +
+      "second floor. There is a [b]balcony[/b] overlooking the atrium " +
+      "to the west, and a shadowy corridor to the east."
+    ],
+    exits: {
+      west: { to: "staircase_landing" },  // back down to the stairs
+      north: { to: "east_wing_nook" }    // the far end of the walkway
+      // east: the shadowy corridor (to be mapped later)
+    }
+  },
+
+  // ------------------------------------------------------------
+  // SECOND FLOOR — the north end of the east walkway
+  // ------------------------------------------------------------
+  east_wing_nook: {
+    name: "The Reading Nook",
+    // the description depends on the direction of approach: the
+    // walkway, the passage behind the bookshelf, or a fresh look
+    desc: () => {
+      // arriving back through the passage, the bookshelf seals itself
+      if (arrivalFrom === "ritual_room") return [
+        "You exit the ritual room and find yourself back at the " +
+        "reading nook. The bookshelf closes behind you."
+      ];
+      // a fresh look around the room you're standing in
+      if (!arrivalFrom) return [
+        "You are in the reading nook at the north end of the east " +
+        "wing on the second floor. There is a [b]bookshelf[/b] next " +
+        "to a comfortable looking [b]leather chair[/b]. Beside the " +
+        "chair is a small wooden [b]end table[/b]" +
+        (state.taken.includes("lantern")
+          ? "."
+          : " with a [b]lantern[/b] on it.")
+      ];
+      // arriving along the walkway from the stairs
+      return [
+        "You follow the walkway to the north end, where there is a " +
+        "[b]bookshelf[/b] and a comfortable looking [b]leather chair[/b]. " +
+        "Next to the chair is a small wooden [b]side table[/b]" +
+        (state.taken.includes("lantern")
+          ? "."
+          : " with a [b]lantern[/b] on it.")
+      ];
+    },
+    exits: {
+      south: { to: "east_wing" }          // back along the walkway
+      // north: behind the bookshelf — only through the passage
+    }
+  },
+
+  // ------------------------------------------------------------
+  // BEHIND THE BOOKSHELF — the ritual room. The grimoire waits
+  // here, and the first Entity materializes after it is found.
+  // ------------------------------------------------------------
+  ritual_room: {
+    name: "The Ritual Room",
+    desc: [
+      "You step into a dimly lit room where you are immediately " +
+      "greeted by the faint scent of stale [b]incense[/b]. There is " +
+      "a [b]pentacle[/b] painted on the floor, with a candle placed " +
+      "at each of its points. In the center of the pentacle is a " +
+      "[b]leatherbound book[/b] placed on a small black rug. Beside " +
+      "the book is a small [b]quartz[/b] crystal, about the size of " +
+      "your thumb."
+    ],
+    exits: {
+      south: { to: "east_wing_nook" }      // back through the passage
+    }
+  },
+
+  // ------------------------------------------------------------
+  // EAST — the corridor to the eastern wing, ground floor
+  // ------------------------------------------------------------
+  east_corridor: {
+    name: "East Corridor",
+    desc: [
+      "You head down the corridor leading to the eastern wing of the " +
+      "mansion's bottom floor. The flickering light of the candles " +
+      "casts eerie shadows on the walls and makes the paintings appear " +
+      "to shift in strange ways.",
+      "There are 3 doors on the right side of the corridor, " +
+      "to the south."
+    ],
+    exits: {
+      west: { to: "mansion_atrium" },
+      south: { to: "doors" }   // prompts: which door?
+    }
+  },
+
+  // ------------------------------------------------------------
+  // WEST — the ballroom
+  // ------------------------------------------------------------
+  ballroom: {
+    name: "The Ballroom",
+    desc: [
+      "You go through the corridor to the west and enter an empty " +
+      "ballroom. There is an ominous feeling to this space. A large " +
+      "[b]organ[/b] is built into the south wall."
+    ],
+    exits: {
+      east: { to: "mansion_atrium" }
+    }
+  },
+
+  // ------------------------------------------------------------
+  // POOL ROOM 1 — dark bedroom (drawn from the east corridor pool)
+  // ------------------------------------------------------------
+  pool_bedroom: {
+    name: "The Dark Bedroom",
+    desc: [
+      "You step through the door and find yourself in a dark bedroom, " +
+      "lit only by a [b]candle[/b] on top of the [b]nightstand[/b]. " +
+      "To the left there is a wood [b]dresser[/b] with a [b]mirror[/b] " +
+      "on top of it. To the right is a closet with a sliding " +
+      "door. In the center of the room there is a red [b]rug[/b]."
+    ],
+    exits: {
+      north: { to: "east_corridor" }
+    }
+  },
+
+  // ------------------------------------------------------------
+  // POOL ROOM 2 — the art studio (drawn from the east corridor pool)
+  // ------------------------------------------------------------
+  pool_art_studio: {
+    name: "The Art Studio",
+    desc: [
+      "You open the door to find an easel in the center of the room, " +
+      "holding a blank [b]canvas[/b]. Beside it is a small [b]table[/b] " +
+      "with a paint [b]palette[/b], some bottles of [b]paint[/b], a " +
+      "cup of water, and a [b]paintbrush[/b]. On the other side of the " +
+      "easel there is a stack of empty canvases. The room is lit by " +
+      "candlesticks placed strategically in the gaps between the " +
+      "[b]paintings[/b] and art supplies scattered across the studio " +
+      "floor, leaving just barely enough room for you to step through " +
+      "the clutter."
+    ],
+    exits: {
+      north: { to: "east_corridor" }
+    }
+  },
+
+  // ------------------------------------------------------------
+  // POOL ROOM 3 — the music room (drawn from the east corridor pool)
+  // ------------------------------------------------------------
+  pool_music_room: {
+    name: "The Music Room",
+    desc: [
+      "You step inside a room full of musical [b]instruments[/b]. In " +
+      "the center of the room is a grand [b]piano[/b]. Beside it is " +
+      "an acoustic [b]guitar[/b] on a stand, along with various " +
+      "other instruments on stands and displayed on walls around " +
+      "the room."
+    ],
+    exits: {
+      north: { to: "east_corridor" }
+    }
+  }
+};
+
+const ITEMS = {
+  // take: true = it can be picked up. examine = text for "examine X".
+  chandelier: {
+    name: "chandelier",
+    take: false,
+    fixedIn: "mansion_atrium",
+    examine: "The chandelier holds several white candles; the flames " +
+             "of which reflect off the gold and shine through the " +
+             "glass, casting dazzling beams of light through the " +
+             "dusty air."
+  },
+  doors: {
+    name: "mahogany doors",
+    take: false,
+    fixedIn: "mansion_atrium",
+    examine: "The doors are large and heavy. Ornate carvings of vines " +
+             "run along the surface of the wood. You try to push them " +
+             "open, but they're locked shut."
+  },
+  crystal_ball: {
+    name: "crystal ball",
+    take: false,
+    fixedIn: "staircase_landing",
+    examine: "You touch the sphere and feel reality shift around you.",
+    onExamine: function () { resetPools(); }   // reshuffles every pool
+  },
+  // ---- second floor east wing: the reading nook ----
+  bookshelf: {
+    name: "bookshelf",
+    take: false,
+    fixedIn: "east_wing_nook",
+    examine: "There are many books and trinkets on the shelf. Of " +
+             "them, 3 books in particular pique your interest: " +
+             "\u201CConstellations,\u201D \u201CThe Stranger In The " +
+             "Mirror,\u201D and an untitled thick red book."
+  },
+  leather_chair: {
+    name: "leather chair",
+    take: false,
+    fixedIn: "east_wing_nook",
+    examine: "A well-worn black leather chair. The right armrest looks a " +
+             "bit crooked."
+  },
+  side_table: {
+    name: "side table",
+    take: false,
+    fixedIn: "east_wing_nook",
+    examine: "A simple wooden side table with a drawer on the front."
+  },
+  lantern: {
+    name: "lantern",
+    take: true,
+    hold: true,   // held in a hand (see equip); must be held to give light
+    startsIn: "east_wing_nook",
+    examine: "A gas lantern, burning steadily. It radiates a pale, " +
+             "warm light."
+  },
+  spagyric_clarity: {
+    name: "Spagyric of Clarity",
+    take: true,
+    startsIn: "east_wing_nook",  // hidden in the side table's drawer
+    hidden: true,                // never takeable until the drawer is opened
+    gate: () => openNookDrawer(), // "take spagyric" routes through the drawer
+    examine: "A small glass vial of pale liquid, warm to the touch.",
+    spagyric: { // consumable: one use, then gone
+      cp: 20,   // base recovery; field noise applies
+      text: "You drink the spagyric and feel your awareness return " +
+            "to clarity."
+    }
+  },
+  // ---- the ritual room, behind the bookshelf ----
+  pentacle: {
+    name: "pentacle",
+    take: false,
+    fixedIn: "ritual_room",
+    examine: "A pentacle painted on the floor in red. You can't " +
+             "tell if it's paint or blood."
+  },
+  ritual_book: {
+    name: "leatherbound book",
+    take: false,
+    fixedIn: "ritual_room",
+    examine: "A thick book, bound in black leather. There is a " +
+             "pentagram embossed on the front cover. You open the " +
+             "pages to find them mostly blank, except for one.",
+    onExamine: function () {
+      if (!state.flags.grimoireFound) findGrimoire();
+    }
+  },
+  quartz: {
+    name: "quartz",
+    take: true,
+    startsIn: "ritual_room",
+    crystal: true, // crystal mechanics: a new item category, TBD
+    examine: "You pick up the quartz crystal and turn it over in " +
+             "your palm. It almost glows with energy. It has a " +
+             "warm, white aura about it.",
+    onExamine: function () {
+      if (!state.taken.includes("quartz")) {
+        say("You have found an item: [b]quartz[/b].", "system");
+        takeItem("quartz");
+      }
+    }
+  },
+  incense_stick: {
+    name: "incense stick",
+    take: true,
+    startsIn: "ritual_room",  // found on the altar, via the lantern
+    hidden: true,             // never takeable until the altar is found
+    gate: () => incenseCheck(), // "take incense" routes through the dark
+    examine: "A fresh stick of ritual incense, faintly aromatic.",
+    incense: { boost: 30 } // consumable: boosts resonance ~4 turns
+  },
+  // note: the corridor's 3 doors are not an examine target — the game
+  // asks which door the player means instead
+  organ: {
+    name: "organ",
+    take: false,
+    fixedIn: "ballroom",
+    examine: "An impressive organ built into the very walls of the " +
+             "Mansion itself, with lead pipes stretching up to the " +
+             "ceiling and wrapping around the walls of the entire " +
+             "ballroom. Its ivory keys are slightly yellowed with age."
+  },
+
+  // ---- pool room: the dark bedroom ----
+  nightstand: {
+    name: "nightstand",
+    take: false,
+    fixedIn: "pool_bedroom",
+    examine: "A wooden nightstand with 2 drawers. It is old and " +
+             "weathered."
+  },
+  dresser: {
+    name: "dresser",
+    take: false,
+    fixedIn: "pool_bedroom",
+    examine: "A heavy old dresser with 3 drawers."
+  },
+  mirror: {
+    name: "mirror",
+    take: false,
+    fixedIn: "pool_bedroom",
+    examine: "You look in the mirror, but you don't recognize your " +
+             "own reflection. It makes you uncomfortable."
+  },
+  closet: {
+    name: "closet",
+    take: false,
+    fixedIn: "pool_bedroom",
+    noClear: true,   // the skeleton is a secret, not part of the clear
+    examine: "There is a skeleton in the closet.",
+    onExamine: function () {
+      if (state.flags.skeletonFound) return;
+      state.flags.skeletonFound = true;
+      adjustCP(noise(11));
+      adjustAP(noise(11));
+    }
+  },
+  rug: {
+    name: "rug",
+    take: false,
+    fixedIn: "pool_bedroom",
+    examine: "A dark red rug, full of dust. There is a subtle fold on " +
+             "one corner, and it looks like there might be something " +
+             "under it."
+  },
+  candle: {
+    name: "candle",
+    take: false,          // the candle cannot be taken
+    fixedIn: "pool_bedroom",
+    examine: "A white candle. The flame burns, but the wax doesn't melt."
+  },
+
+  // ---- pool room: the art studio ----
+  canvas: {
+    name: "canvas",
+    take: false,
+    fixedIn: "pool_art_studio",
+    examine: "A blank canvas, ready to be brought to life."
+  },
+  table: {
+    name: "table",
+    take: false,
+    fixedIn: "pool_art_studio",
+    examine: "A simple wooden table with a drawer on one side. It is " +
+             "covered in old paint."
+  },
+  palette: {
+    name: "palette",
+    take: false,
+    fixedIn: "pool_art_studio",
+    examine: "An ordinary paint palette, with 9 divots for mixing paint."
+  },
+  paint_bottles: {
+    name: "paint bottles",
+    take: false,
+    fixedIn: "pool_art_studio",
+    examine: "There are 9 paint bottles on the table: white, black, " +
+             "red, orange, yellow, green, blue, indigo, and violet."
+  },
+  paintbrush: {
+    name: "paintbrush",
+    take: false,
+    fixedIn: "pool_art_studio",
+    examine: "An ordinary paintbrush."
+  },
+  paintings: {
+    name: "paintings",
+    take: false,
+    fixedIn: "pool_art_studio",
+    examine: "Dozens of half-finished paintings litter the floor of " +
+             "the art studio. Some of them almost look like " +
+             "landscapes remembered from a dream, or the face of " +
+             "someone forgotten."
+  },
+
+  // ---- pool room: the music room ----
+  piano: {
+    name: "piano",
+    take: false,
+    fixedIn: "pool_music_room",
+    examine: "A large grand piano with the top open. A fine " +
+             "instrument, if a bit dusty and slightly out of tune. " +
+             "The candles around the room reflect off its glossy " +
+             "black finish like stars in the night sky. There is a " +
+             "piece of sheet music on the shelf titled " +
+             "\u201CAstral's Song\u201D.",
+    onExamine: function () { collectSheet("astrals_song"); }
+  },
+  piano_bench: {
+    name: "piano bench",
+    take: false,
+    fixedIn: "pool_music_room",
+    examine: "You check the bench and notice that the seat lifts up.",
+    onExamine: function () { collectSheet("ballroom_serenade"); }
+  },
+  sheet_music: {
+    name: "sheet music",
+    take: true,
+    startsIn: "pool_music_room",
+    sheet: "astrals_song"   // examining or taking it collects the song
+  },
+  guitar: {
+    name: "guitar",
+    take: false,
+    fixedIn: "pool_music_room",
+    examine: "An old acoustic guitar, dusty and worn. It's missing " +
+             "a string and the frets are damaged."
+  },
+  instruments: {
+    name: "instruments",
+    take: false,
+    fixedIn: "pool_music_room",
+    examine: "There are many other string and wind instruments " +
+             "displayed around the room. You don't know how to play " +
+             "most of them."
+  }
+  // note: the bed is only implied by the room's name — it is not an
+  // interactable object and has no entry here
+};
+
+const NPCS = {
+  // none in the mansion yet — add characters here when you write them
+};
+
+/* NOTES — scattered writings the player finds and keeps.
+   Notes are found ORGANICALLY, never by typing a title:
+   - foundWith: the ITEM the note is hidden in or with. The first time
+     the player examines that item, the note is collected and its
+     text is shown. (E.g. a note tucked under the crystal ball.)
+   - For special discovery beats, a TRIGGER can call
+     collectNote("note_key") directly and return its own text.
+   Once found, a note can be reread anytime: click it in the Notes
+   list, or type "read" plus a keyword from its title.
+   Text can be one string or an array of paragraphs. */
+const NOTES = {
+  nts1: {
+    name: "Note-to-Self 1",
+    // found by opening the nightstand's bottom drawer (see DRAWERS)
+    text: [
+      "\u201CI am who I am, and I always will be. I can never be " +
+      "anyone else. I will never be anyone else. I can only ever be " +
+      "myself.",
+      "But what if I don't like myself?",
+      "I guess I'll just have to be okay with that.",
+      "Yeah. I'm okay with that.\u201D"
+    ]
+  }
+};
+
+/* DRAWERS — pieces of furniture with numbered drawers.
+   Per room, per furniture item. Each drawer has:
+     names:  the words/numbers that mean this drawer
+             (top/bottom/first/second/1/2/3...)
+     text:   shown when the player opens it (omit for the generic
+             empty-drawer response)
+   Room-level field:
+     note:  a note hidden in ONE drawer of this ROOM — which of the
+            room's drawers (across all furniture) is chosen randomly
+            the first time the player opens one, and that placement
+            is fixed for the rest of the run. A found note never
+            respawns, even after a Mansion reset.
+   If the player types "open drawer" with no number, the game asks
+   them to specify. Drawers only open while standing at the piece. */
+const EMPTY_DRAWER = "Nothing but dust and cobwebs.";
+
+const DRAWERS = {
+  pool_art_studio: {
+    table: {
+      drawers: {
+        1: { names: ["drawer", "1", "one", "top", "first", "side"] }
+      }
+    }
+  },
+  pool_bedroom: {
+    note: "nts1",   // hides in any one drawer in this room
+    nightstand: {
+      drawers: {
+        1: { names: ["top", "first", "1", "one"] },
+        2: { names: ["bottom", "second", "2", "two"] }
+      }
+    },
+    dresser: {
+      drawers: {
+        1: { names: ["1", "one", "top", "first"] },
+        2: { names: ["2", "two", "second", "middle", "center"] },
+        3: { names: ["3", "three", "bottom", "third"] }
+      }
+    }
+  }
+};
+
+/* SHEETS — collectible sheet music. Each entry:
+     name: the song's title
+     file: its audio track (played while performed; room music returns
+           on the next room change)
+     text: (optional) a custom response when it is played; the default
+           is "You play [name]."
+   Sheets are found organically (items that carry sheet: "<id>", or
+   an onExamine hook) and are kept forever, like notes. They can be
+   played on the music room's piano and the ballroom organ. */
+const SHEETS = {
+  astrals_song: {
+    name: "Astral's Song",
+    file: "astrals-song.mp3"
+  },
+  ballroom_serenade: {
+    name: "Ballroom Serenade",
+    file: "ballroom-serenade.mp3"
+  }
+};
+
+/* GLYPHS — the magick system. Each glyph:
+     glyph:     the character itself (can be pasted to cast)
+     phonetic:  how it is typed aloud (khal, rewe...)
+     name:      its full name ("force collapse")
+     costCP/costAP: coherence/alignment cost to cast
+     power:     base effect magnitude (damage, restore...)
+     effect:    engine effect key
+   All numbers are base values: every cast gets +/-5 noise, and the
+   alignment multiplier applies to all casts. Casting a glyph you
+   cannot afford drains 10 CP and 10 AP. Failure chance scales with
+   coherence, shifted by alignment (see alignMult: alignment
+   multiplies every glyph's effect).
+   The player starts knowing ⟁ khal; other glyphs are learned from
+   enemies via 𐜄 (reco), or found in the world (learnGlyph). */
+/* effects a ward blocks (the Entity's ward and yours alike) */
+const WARD_BLOCKED = ["attack", "severance", "karmic"];
+const GLYPHS = {
+  khal:  { glyph: "⟁", phonetic: "khal",  name: "inject collapse",
+           desc: "Injects collapse into your opponent's field. Deals " +
+                 "CP damage and charges your alignment.",
+           costCP: 7, costAP: 0, power: 9, effect: "attack",
+           apGain: 5 },
+  rewe:  { glyph: "✺", phonetic: "rewe",  name: "field reweave",
+           desc: "Reweaves your field and restores coherence.",
+           costCP: 0, costAP: 8, power: 20, effect: "restore" },
+  reco:  { glyph: "𐜄", phonetic: "reco",  name: "archive glyph",
+           desc: "Archives the last cast glyph in your grimoire. " +
+                 "This causes CP damage to your opponent.",
+           costCP: 0, costAP: 65, power: 12, effect: "archive" },
+  reve:  { glyph: "⇋", phonetic: "reve",  name: "field reversal",
+           desc: "Reflects your opponent's last cast glyph back to them.",
+           costCP: 12, costAP: 16, power: 0, effect: "reverse" },
+  shiel: { glyph: "⛉", phonetic: "shiel", name: "field ward",
+           desc: "Wards you from incoming attacks for 1 turn.",
+           costCP: 8, costAP: 12, power: 0, effect: "ward" },
+  telos: { glyph: "⌖", phonetic: "telos", name: "terminal alignment point",
+           desc: "Instantly drains your opponent's coherence at the " +
+                 "cost of destroying your alignment.",
+           costCP: 0, costAP: 100, power: 0, effect: "telos" },
+  tempo: { glyph: "⧗", phonetic: "tempo", name: "time anchor",
+           desc: "Locks your opponent's field for 1 turn.",
+           costCP: 15, costAP: 0, power: 0, effect: "tempo" },
+  zhahd: { glyph: "↯", phonetic: "zhahd", name: "resonance discharge",
+           desc: "Siphons resonance from the field and bends it " +
+                 "toward your alignment.",
+           costCP: 12, costAP: 0, power: 0, effect: "discharge" },
+  cord:  { glyph: "𓌷", phonetic: "cord",  name: "collapse severance",
+           desc: "Severs a random glyph from your opponent's grimoire " +
+                 "and charges your alignment.",
+           costCP: 24, costAP: 0, power: 0, effect: "severance",
+           apGain: 12 },
+  karm:  { glyph: "⌯", phonetic: "karm",  name: "karmic link",
+           desc: "Establishes a resonance link between you and your " +
+                 "opponent and siphons some of their alignment into " +
+                 "yours.",
+           costCP: 20, costAP: 0, power: 0, effect: "karmic" },
+  rmem:  { glyph: "Ƨ", phonetic: "rmem",  name: "reverse flow",
+           desc: "Reverses the flow of your field. The reversal " +
+                 "drains half the resonance pool.",
+           costCP: 0, costAP: 0, power: 0, effect: "swap",
+           costNote: "\u00BD resonance pool" },
+  reso:  { glyph: "Ӝ", phonetic: "reso",  name: "resonance core",
+           desc: "Locks resonance at its current value for 3 more turns.",
+           costCP: 8, costAP: 0, power: 0, effect: "stabilize" }
+};
+
+/* PAINTINGS — the art studio free-text puzzle.
+   While the player is painting, whatever they type is matched
+   against each entry's aliases (case/punctuation ignored, and a
+   leading "paint ", "the ", or "a " is stripped). An unmatched
+   phrase gets PAINT_FAIL. The real puzzle answer will be an entry
+   marked correct: true — leave the hook unset until it is written. */
+const PAINT_FAIL =
+  "You try to paint that, but it doesn't come out right. You toss " +
+  "the half-painted canvas on the floor with the others and set up " +
+  "a new one from the stack.";
+
+const PAINTINGS = [
+  { aliases: ["angel with prosthetic wings", "prosthetic wings", "white"],
+    text: "You try to paint Her, but you give up when you realize " +
+          "you'll never capture Her beauty." },
+  { aliases: ["nihilist", "black"],
+    text: "You cover the entire canvas in black. As you look at it, " +
+          "you can almost see a face screaming at you." },
+  { aliases: ["mansion", "root chakra", "red"],
+    text: "You paint a black cube on a red background." },
+  { aliases: ["city of spires", "sacral chakra", "orange"],
+    text: "You paint an orange circle with black spikes sticking out " +
+          "from all sides." },
+  { aliases: ["forest of plastic trees", "solar plexus", "yellow"],
+    text: "You cover the entire canvas in yellow. You mix the white " +
+          "and black paints together to make grey, and use it to " +
+          "paint vertical lines against the yellow background." },
+  { aliases: ["crater of the pyramid", "heart chakra", "green"],
+    text: "You paint a black upside down triangle with a green " +
+          "square underneath it." },
+  { aliases: ["rolling hills", "throat chakra", "blue"],
+    text: "You carelessly scribble blue paint all over the canvas. " +
+          "It looks like a tangled mess of wires." },
+  { aliases: ["church of the catalyst", "third eye", "indigo"],
+    text: "You paint an indigo eye on the canvas. It looks back at " +
+          "you curiously." },
+  { aliases: ["garden of memory", "crown chakra", "violet", "purple"],
+    text: "You paint a huge tree with violet flowers." },
+  { aliases: ["asylum"],
+    text: "You paint a desert landscape under a full moon." },
+  { aliases: ["rainbow"],
+    text: "You try to paint a rainbow, but you don't know what it " +
+          "looks like. You can't remember ever seeing one before." },
+  { aliases: ["self", "myself", "self portrait", "protagonist"],
+    text: "You paint a faceless silhouette of a humanoid figure." },
+  { aliases: ["sirius wizard"],
+    text: "You paint a bearded man wearing a blue robe, holding a " +
+          "white stone in his right hand, and a black one in his " +
+          "left. His face is obscured by a large hood." },
+  { aliases: ["hierophant of arcturus"],
+    text: "You paint a bearded man in ceremonial garb holding up 2 " +
+          "fingers on his right hand and carrying a staff in his " +
+          "left." },
+  { aliases: ["pyramid"],
+    text: "You paint a massive pyramid surrounded by the ocean, with " +
+          "the sun shining directly above it." }
+];
+
+const DIALOGUES = {
+  // no conversations yet — add dialogue trees here when you write them
+};
+
+/* TRIGGERS — custom reactions to typed commands.
+   The handler returns text to print, or null for silence. */
+const TRIGGERS = {
+  "open doors": () => {
+    if (state.roomId === "mansion_atrium") return tryExit("n");
+    return "There are no doors here.";
+  },
+  "open closet": () =>
+    (state.roomId === "pool_bedroom")
+      ? examineCloset()
+      : "There is no closet here.",
+  "open closet door": () =>
+    (state.roomId === "pool_bedroom")
+      ? examineCloset()
+      : "There is no closet here.",
+  "open sliding door": () =>
+    (state.roomId === "pool_bedroom")
+      ? examineCloset()
+      : "There is no sliding door here.",
+  "use crystal ball": () => {
+    if (state.roomId !== "staircase_landing") return "There is no crystal ball here.";
+    resetPools();
+    return "You touch the sphere and feel reality shift around you.";
+  },
+  "touch crystal ball": () => {
+    if (state.roomId !== "staircase_landing") return "There is no crystal ball here.";
+    resetPools();
+    return "You touch the sphere and feel reality shift around you.";
+  },
+  "touch ball": () => {
+    if (state.roomId !== "staircase_landing") return "There is no crystal ball here.";
+    resetPools();
+    return "You touch the sphere and feel reality shift around you.";
+  },
+  "touch sphere": () => {
+    if (state.roomId !== "staircase_landing") return "There is no crystal ball here.";
+    resetPools();
+    return "You touch the sphere and feel reality shift around you.";
+  },
+  "use paint": () => startPainting(),
+  "use paints": () => startPainting(),
+  "use palette": () => startPainting(),
+  "use paintbrush": () => startPainting(),
+  "use brush": () => startPainting(),
+  "paint": () => startPainting(),
+  "paint something": () => startPainting(),
+  "paint a picture": () => startPainting(),
+  "paint picture": () => startPainting(),
+  "start painting": () => startPainting(),
+
+  // ---- the balcony over the atrium ----
+  "look west": () => balconyThought(),
+  "look at the balcony": () => balconyThought(),
+  "look at balcony": () => balconyThought(),
+  "examine balcony": () => balconyThought(),
+  "look over the balcony": () => balconyThought(),
+  "look over balcony": () => balconyThought(),
+  "jump": () => jumpBalcony(),
+  "jump over": () => jumpBalcony(),
+  "jump over railing": () => jumpBalcony(),
+  "jump over the railing": () => jumpBalcony(),
+  "lean over": () => jumpBalcony(),
+  "lean over railing": () => jumpBalcony(),
+  "lean over the railing": () => jumpBalcony(),
+  "fall": () => jumpBalcony(),
+  "fall over": () => jumpBalcony(),
+  "do it": () =>
+    (state.roomId === "east_wing")
+      ? jumpBalcony()
+      : "Do what, exactly?",
+
+  // ---- the reading nook ----
+  "stand": () => standUp(),
+  "stand up": () => standUp(),
+  "get up": () => standUp(),
+  "get out of the chair": () => standUp(),
+  "get up from the chair": () => standUp(),
+  "sit": () => sitChair(),
+  "sit down": () => sitChair(),
+  "sit in chair": () => sitChair(),
+  "sit in the chair": () => sitChair(),
+  "sit on chair": () => sitChair(),
+  "sit on the chair": () => sitChair(),
+  "use chair": () => sitChair(),
+  "use the chair": () => sitChair(),
+  "take a seat": () => sitChair(),
+  "take a seat in the chair": () => sitChair(),
+  "sit down and read a book": () =>
+    (state.roomId === "east_wing_nook")
+      ? [sitChair(), ...bookMenu()]
+      : "There is no chair to sit in here.",
+  "read book": () =>
+    (state.roomId === "ritual_room")
+      ? examineRitualBook()
+      : bookMenu(),
+  "read a book": () => bookMenu(),
+  "read the book": () => bookMenu(),
+  "read books": () => bookMenu(),
+  "read the books": () => bookMenu(),
+  "read constellations": () => readBook("constellations"),
+  "constellations": () => readBook("constellations"),
+  "read the stranger in the mirror": () => readBook("stranger"),
+  "read stranger in the mirror": () => readBook("stranger"),
+  "read the stranger": () => readBook("stranger"),
+  "read stranger": () => readBook("stranger"),
+  "stranger in the mirror": () => readBook("stranger"),
+  "read the red book": () => readBook("red"),
+  "read red book": () => readBook("red"),
+  "read the red": () => readBook("red"),
+  "read red": () => readBook("red"),
+  "red book": () => readBook("red"),
+  "1": () =>
+    (state.roomId === "east_wing_nook")
+      ? readBook("constellations")
+      : "That doesn't mean anything here.",
+  "2": () =>
+    (state.roomId === "east_wing_nook")
+      ? readBook("stranger")
+      : "That doesn't mean anything here.",
+  "3": () =>
+    (state.roomId === "east_wing_nook")
+      ? readBook("red")
+      : "That doesn't mean anything here.",
+
+  // ---- the hidden passage ----
+  "check armrest": () => openPassage(),
+  "check the armrest": () => openPassage(),
+  "pull armrest": () => openPassage(),
+  "pull the armrest": () => openPassage(),
+  "push armrest": () => openPassage(),
+  "push the armrest": () => openPassage(),
+  "use armrest": () => openPassage(),
+  "use the armrest": () => openPassage(),
+  "move armrest": () => openPassage(),
+  "move the armrest": () => openPassage(),
+  "step through": () => passageThrough(),
+  "step through the passage": () => passageThrough(),
+  "step through passage": () => passageThrough(),
+  "yes": () =>
+    (state.roomId === "east_wing_nook" && state.flags.passageOpen)
+      ? passageThrough()
+      : "There is nothing to agree to.",
+  "no": () => passageDecline(),
+
+  // ---- the side table drawer & the spagyric ----
+  "open drawer": () =>
+    (state.roomId === "east_wing_nook")
+      ? openNookDrawer()
+      : (handleDrawers(["open", "drawer"]), null), // other rooms keep their drawers
+  "use spagyric": () => useSpagyric("spagyric_clarity"),
+  "use the spagyric": () => useSpagyric("spagyric_clarity"),
+  "use spagyric of clarity": () => useSpagyric("spagyric_clarity"),
+  "drink spagyric": () => useSpagyric("spagyric_clarity"),
+  "drink the spagyric": () => useSpagyric("spagyric_clarity"),
+  "drink spagyric of clarity": () => useSpagyric("spagyric_clarity"),
+  "drink the spagyric of clarity": () => useSpagyric("spagyric_clarity"),
+  "drink clarity": () => useSpagyric("spagyric_clarity"),
+  "use clarity": () => useSpagyric("spagyric_clarity"),
+  "drink vial": () => useSpagyric("spagyric_clarity"),
+  "use vial": () => useSpagyric("spagyric_clarity"),
+
+  // ---- the grimoire ----
+  "take grimoire": () => findGrimoire(),
+  "take the grimoire": () => findGrimoire(),
+  "get grimoire": () => findGrimoire(),
+  "pick up grimoire": () => findGrimoire(),
+  "pick up the grimoire": () => findGrimoire(),
+  "read grimoire": () => findGrimoire(),
+  "open grimoire": () => findGrimoire(),
+
+  // ---- more balcony phrasings ----
+  "check balcony": () => balconyThought(),
+  "check the balcony": () => balconyThought(),
+  "go to balcony": () => balconyThought(),
+  "go to the balcony": () => balconyThought(),
+  "walk to balcony": () => balconyThought(),
+  "walk to the balcony": () => balconyThought(),
+  "approach balcony": () => balconyThought(),
+  "approach the balcony": () => balconyThought(),
+
+  // ---- the rug in the dark bedroom ----
+  "lift rug": () => liftRug(),
+  "lift the rug": () => liftRug(),
+  "check under rug": () => liftRug(),
+  "check under the rug": () => liftRug(),
+  "look under rug": () => liftRug(),
+  "look under the rug": () => liftRug(),
+  "move rug": () => liftRug(),
+  "move the rug": () => liftRug(),
+
+  // ---- the dark corner & the incense stick ----
+  "inspect incense": () => incenseCheck(),
+  "inspect the incense": () => incenseCheck(),
+  "examine incense": () => incenseCheck(),
+  "examine the incense": () => incenseCheck(),
+  "check incense": () => incenseCheck(),
+  "check the incense": () => incenseCheck(),
+  "look at incense": () => incenseCheck(),
+  "look at the incense": () => incenseCheck(),
+  "smell incense": () => incenseCheck(),
+  "smell the incense": () => incenseCheck(),
+  "follow incense": () => incenseCheck(),
+  "follow the incense": () => incenseCheck(),
+  "use incense stick": () => useIncense(),
+  "use the incense stick": () => useIncense(),
+  "use incense": () => useIncense(),
+  "use the incense": () => useIncense(),
+  "burn incense": () => useIncense(),
+  "burn the incense": () => useIncense(),
+  "burn incense stick": () => useIncense(),
+  "light incense": () => useIncense(),
+  "light the incense": () => useIncense(),
+  "light incense stick": () => useIncense(),
+
+  // ---- the ritual room's book: take/read/open all open it ----
+  "take book": () => examineRitualBook(),
+  "take the book": () => examineRitualBook(),
+  "get book": () => examineRitualBook(),
+  "get the book": () => examineRitualBook(),
+  "pick up book": () => examineRitualBook(),
+  "pick up the book": () => examineRitualBook(),
+  "open book": () => examineRitualBook(),
+  "open the book": () => examineRitualBook(),
+  "check book": () => examineRitualBook(),
+  "check the book": () => examineRitualBook(),
+  "read the book": () =>
+    (state.roomId === "ritual_room")
+      ? examineRitualBook()
+      : bookMenu(),
+
+  // ---- debug: learn every glyph at once ----
+  "i am the sirius wizard": () => {
+    Object.keys(GLYPHS).forEach(id => {
+      if (!state.grimoire.includes(id)) state.grimoire.push(id);
+    });
+    renderGrimoire();
+    return "The glyphs of the master grimoire settle into your own, " +
+           "one by one. (All glyphs learned.)";
+  },
+
+  // ---- debug: full alignment ----
+  "i am aligned": () => {
+    state.cp = 100;
+    state.ap = 100;
+    renderStats();
+    return "The field steadies around you. (Coherence and Alignment " +
+           "at 100.)";
+  },
+
+  // ---- debug: summon a full-strength Entity anywhere ----
+  "face my fear": () => {
+    if (state.enemy) return "There is already something facing you.";
+    if (state.dead) return null;
+    spawnEntity({
+      name: "Entity",
+      cp: 100, ap: 100, cap: 100,
+      glyphs: Object.keys(GLYPHS)   // the full glyph set
+    });
+    return null;
+  }
+};
+
+function startPainting() {
+  if (state.roomId !== "pool_art_studio") return "There is nothing to paint with here.";
+  state.painting = true;
+  return "You put the white, black, red, orange, yellow, green, blue, " +
+         "indigo, and violet paints in order on the palette. What do " +
+         "you want to paint?";
+}
+
+/* ---------- east wing: the balcony, the books, the passage ---------- */
+const BOOKS = {
+  constellations: {
+    text: [
+      "\u201CAsylum was written into Creation by The Poet.",
+      "",
+      "The First light of the Constellation of The Eye marked the " +
+      "dawn of the 1st Cycle of the 1st Age, and thus time began.",
+      "",
+      "The Cycle is divided into 7 equal parts, indicated by their " +
+      "Constellations.",
+      "1. The Serpent",
+      "2. The Dagger",
+      "3. The Torch",
+      "4. The Pyramid",
+      "5. The Pentagram",
+      "6. The Eye",
+      "7. The Tree",
+      "",
+      "There are 1836 Cycles in an Age.",
+      "",
+      "The Protagonist entered the Mansion under the Constellation " +
+      "of The Tree in the 1836th Cycle of the 33rd Age.\u201D"
+    ]
+  },
+  stranger: {
+    text: [
+      "\u201CI am awake",
+      "I found myself today",
+      "And I am not where I thought I'd be at all",
+      "I wish that I could travel back in time",
+      "So I could change my destination",
+      "I exist in silence",
+      "I think I've lost my voice",
+      "I sit in Darkness",
+      "These four walls are my world",
+      "My only audience",
+      "Is the Stranger In The Mirror\u201D"
+    ]
+  },
+  red: {
+    text: [
+      "The book is full of math equations, symbols you don't " +
+      "recognize, charts, grids, and sigils that shift and change " +
+      "shape as you look at them. Reading it makes your head hurt."
+    ]
+  }
+};
+
+function balconyThought() {
+  if (state.roomId !== "east_wing") return "There is no balcony here.";
+  return "You lean over the railing and look down at the atrium. For " +
+         "a moment, you think about throwing yourself over and " +
+         "falling onto the marble floor below. The thought disturbs " +
+         "you.";
+}
+
+function jumpBalcony() {
+  if (state.roomId !== "east_wing")
+    return "There is nothing to jump over here.";
+  adjustCP(-noise(50));          // the fall costs you
+  adjustAP(-state.ap);           // and scatters your alignment entirely
+  state.path = [];                // the fall severs the way you came
+  enterRoom("mansion_atrium");
+  // the fall prints above the room description, right under the title
+  const p = document.createElement("p");
+  p.className = "narration";
+  p.innerHTML = glitchify(fmt("You close your eyes and let yourself " +
+    "fall over the railing. You slam into the ground headfirst, but " +
+    "feel no pain. You stand up, a little shaken but unharmed."));
+  storyEl.insertBefore(p, storyEl.children[1]);
+  storyEl.scrollTop = storyEl.scrollHeight;
+  return null;
+}
+
+function sitChair() {
+  if (state.roomId !== "east_wing_nook") return "There is no chair to sit in here.";
+  if (isSeated()) return "You are already sitting in the chair.";
+  setAt("leather_chair");
+  state.flags.sitting = true;
+  return "The chair creaks under your weight as you take a seat. " +
+         "It's quite comfortable. You could almost see yourself " +
+         "reading a book here.";
+}
+
+function standUp() {
+  if (!isSeated()) return "You are already on your feet.";
+  state.flags.sitting = false;
+  state.flags.redReadSeated = false;
+  return "You get up from the chair.";
+}
+
+function bookMenu() {
+  if (state.roomId !== "east_wing_nook") return "There are no books to read here.";
+  return ["Which book would you like to read?",
+          "1. Constellations",
+          "2. The Stranger In The Mirror",
+          "3. The Red Book"];
+}
+
+function readBook(id) {
+  if (state.roomId !== "east_wing_nook") return "There are no books to read here.";
+  paragraphs(BOOKS[id].text, "narration");
+  if (id === "red") {
+    adjustCP(-noise(5)); // reading it hurts
+    // the armrest only answers a reader who is sitting in the chair
+    if (isSeated()) {
+      state.flags.redReadSeated = true;
+      paragraphs("The right armrest of the chair creaks oddly as you " +
+                 "close the book.", "system");
+    }
+  }
+  return null;
+}
+
+function openPassage() {
+  if (state.roomId !== "east_wing_nook") return "There is no armrest here.";
+  // solved once = always re-openable; otherwise the player must be sitting
+  // in the chair, having just read the red book
+  if (!state.flags.puzzleRewarded &&
+      !(isSeated() && state.flags.redReadSeated)) {
+    return "The armrest feels a bit loose, but nothing happens.";
+  }
+  state.flags.passageOpen = true;
+  // solving the puzzle rewards both channels, once ever
+  if (!state.flags.puzzleRewarded) {
+    state.flags.puzzleRewarded = true;
+    adjustCP(noise(10));
+    adjustAP(noise(15));
+  }
+  return ["You notice the armrest feels a little loose. Something " +
+          "inside clicks, and the bookshelf beside you begins to " +
+          "move, silently revealing a hidden passage.",
+          "Step through? (yes / no)"];
+}
+
+function passageThrough() {
+  if (state.roomId !== "east_wing_nook" || !state.flags.passageOpen)
+    return "There is nothing to step through here.";
+  state.flags.passageOpen = false;
+  enterRoom("ritual_room");
+  return null;
+}
+
+function passageDecline() {
+  if (!state.flags.passageOpen) return "There is no question pending.";
+  state.flags.passageOpen = false;
+  return "You return the red book back to the shelf, and the " +
+         "bookshelf slides into place, as if the passage was never " +
+         "there.";
+}
+
+function openNookDrawer() {
+  if (state.taken.includes("spagyric_clarity")) return "The drawer is empty.";
+  paragraphs("You open the drawer. You have found an item: " +
+             "[b]Spagyric of Clarity[/b] — a spagyric distilled for " +
+             "clarity. Drink it to restore 20CP.", "system");
+  takeItem("spagyric_clarity");
+  return null;
+}
+
+/* consumables: spagyrics — one use, then gone */
+function useSpagyric(id) {
+  const idx = state.inventory.indexOf(id);
+  if (idx < 0) return "You don't have that.";
+  const sp = ITEMS[id].spagyric;
+  state.inventory.splice(idx, 1);
+  renderInventory();
+  if (sp.cp) adjustCP(noise(sp.cp));
+  return sp.text;
+}
+
+/* the grimoire itself — a physical thing, found in the ritual room.
+   Until it is found, the panel is hidden and no glyphs can be cast. */
+function examineRitualBook() {
+  if (state.roomId !== "ritual_room")
+    return "There is no book like that here.";
+  paragraphs(ITEMS.ritual_book.examine, "system");
+  if (!state.flags.grimoireFound) findGrimoire();
+  return null;
+}
+
+function findGrimoire() {
+  if (state.roomId !== "ritual_room") return "There is no grimoire here.";
+  if (state.flags.grimoireFound) return "You already have the grimoire.";
+  state.flags.grimoireFound = true;
+  state.grimoire.push("khal");   // its first lesson
+  renderGrimoire();
+  paragraphs(["You have found a grimoire.",
+              "You have learned a new glyph:",
+              "[b]⟁ (khal) — Inject Collapse[/b]",
+              "Injects collapse in your opponent's field."], "system");
+  return null;
+}
+
+/* the closet's skeleton: examining or opening the closet reveals it
+   once, awarding 11 coherence and 11 alignment */
+function examineCloset() {
+  if (state.roomId !== "pool_bedroom") return "There is no closet here.";
+  paragraphs(ITEMS.closet.examine, "system");
+  if (typeof ITEMS.closet.onExamine === "function") ITEMS.closet.onExamine();
+  return null;
+}
+
+/* the rug in the dark bedroom hides a pentagram */
+function liftRug() {
+  if (state.roomId !== "pool_bedroom") return "There is no rug here.";
+  return "You lift the rug and find a red pentagram painted on the " +
+         "floor underneath it.";
+}
+
+
+/* the dark corner and the altar it hides */
+function incenseCheck() {
+  if (state.roomId !== "ritual_room") return "There is no incense here.";
+  if (state.taken.includes("incense_stick"))
+    return "The ash tray sits cold and empty in the corner.";
+  if (!isHeld("lantern")) {
+    // the dark pushes back, harder each time
+    if (state.flags.incenseFails) {
+      const bleed = 2 + state.flags.incenseFails;
+      state.flags.incenseFails++;
+      adjustCP(-Math.max(1, noise(bleed))); // always bites
+    } else {
+      state.flags.incenseFails = 1;
+    }
+    return "You trace the smell to a certain corner of the room, " +
+           "but it's too dark there to see anything." +
+           (inInventory("lantern")
+             ? " Your lantern would help, if you were holding it." : "");
+  }
+  paragraphs(["You trace the smell to a certain corner of the room. " +
+    "Shining your lantern into the dark corner reveals a small " +
+    "stone altar hidden in the shadows. Scattered atop the altar " +
+    "are various ritual tools, including a metal tray for burning " +
+    "incense. It's full of ash, but there is a fresh stick beside " +
+    "it."], "narration");
+  say("You have found an item: [b]incense stick[/b] — boosts " +
+      "resonance by 30 for a few turns. (Consumable: use it, and " +
+      "it's gone.)", "system");
+  takeItem("incense_stick");
+  return null;
+}
+
+function useIncense() {
+  const idx = state.inventory.indexOf("incense_stick");
+  if (idx < 0) return "You don't have an incense stick.";
+  state.inventory.splice(idx, 1);
+  renderInventory();
+  // a flat resonance boost that eases off over the next few turns
+  const boost = ITEMS.incense_stick.incense.boost;
+  state.resDist -= boost;
+  renderStats();
+  return "You light the incense. The aroma fills the room and slows " +
+         "the field";
+}
+
+/* MUSIC — each room can have a track. Files live in the "audio/"
+   folder next to the HTML file when hosted, e.g. audio/clearing.mp3
+   "_default" plays in any room that has no track of its own.
+   Leave MUSIC empty ({}) to run silent. */
+const MUSIC_DIR = "audio/";
+const MUSIC = {
+  _default: "mansion-atrium.mp3",     // fallback for rooms without a track
+  mansion_atrium: "mansion-atrium.mp3",
+  staircase_landing: "grand-staircase.mp3",
+  east_corridor: "east-corridor.mp3",
+  ballroom: "ballroom-organ.mp3",
+  pool_bedroom: "dark-bedroom.mp3",
+  pool_art_studio: "art-studio.mp3",
+  pool_music_room: "music-room.mp3",
+  east_wing: "east-wing.mp3",
+  east_wing_nook: "reading-nook.mp3",
+  ritual_room: "ritual-room.mp3",
+  // sheet-music songs (played when the player performs them):
+  song_astrals_song: "astrals-song.mp3",
+  song_ballroom_serenade: "ballroom-serenade.mp3"
+};
+
+/* NUMBERED DOORS — set a door's value to "pool" and it draws a random
+   room from POOLS the first time the player opens it. The assignment
+   is then fixed for the rest of the run (see the pools section below).
+   You can also point a door directly at a fixed room key instead. */
+const NUMBERED_DOORS = {
+  east_corridor: {
+    1: "pool",
+    2: "pool",
+    3: "pool"
+  }
+};
+
+/* POOLS — the rooms a "pool" door can draw from, one entry per room.
+   Each room in the list can have its own items, NPCs, exits, etc.,
+   exactly like any other room. Assignments stick until reset.
+   The special entry "locked" is a locked door: if drawn, that door
+   stays locked for the rest of the run. Repeat "locked" entries to
+   weight the odds. */
+const POOLS = {
+  east_corridor: [
+    "pool_bedroom",
+    "pool_art_studio",
+    "pool_music_room",
+    "locked"
+    // more pool rooms as they are written
+  ]
+};
+
+/* ============================================================
+   PART 2 — THE ENGINE (no need to edit below this line)
+   ============================================================ */
+
+const state = {
+  roomId: null,
+  firstRoom: "mansion_atrium",   // <- where the game starts
+  inventory: [],
+  hands: { left: null, right: null }, // item ids held in each hand
+  handStash: null,   // what the left hand held before combat drew the grimoire
+  pendingHold: null, // equip prompt: { stage: "hand"|"replace", item, hand }
+  taken: [],       // item ids picked up
+  unlocked: [],    // exits permanently unlocked
+  doorAssignments: {},  // sticky random door draws: { roomId: { door#: roomKey } }
+  notes: [],       // note ids found so far
+  at: null,        // the item the player is standing at (for drawers etc.)
+  doorChoice: null, // while set: the player stands before numbered doors
+  path: [],        // rooms visited, so "go back" can retrace
+  painting: false, // while true: typed input is a painting subject
+  drawerNotes: {}, // sticky random note placements: { "room:furn": drawer# }
+  drawerLoot: {},  // sticky random loot in searchables: key -> item id | null
+  turns: 0,        // global turn counter (meditation cooldowns, etc.)
+  lastMeditate: -99, // the turn meditation was last completed
+  sheets: [],      // sheet-music ids collected
+  cp: 50,          // coherence (0–100)
+  ap: 0,           // alignment (0–100)
+  grimoire: [],    // glyph ids learned (the grimoire is found, not given)
+  resDist: 0,      // resonance drained/added directly; recovers over turns
+  resLock: null,   // Ӝ reso: { value, turns } — the pool, pinned
+  enemy: null,     // active enemy, if any (combat build)
+  ward: false,     // ⛉ shiel: blocks incoming offensive glyphs for one turn
+  playerSkip: false, // ⧗ tempo cast on you: your next turn passes
+  lastCast: null,  // { caster, id } — for 𐜄 reco and ⇋ revé
+  dead: false,     // death prompt pending (reincarnate yes/no)
+  examined: {},    // roomId -> [item ids examined there]
+  clearedRooms: [],// rooms fully engaged (all items examined/taken)
+  clearedFirstTry: [], // rooms cleared on the first visit (meditation-safe)
+  meditating: false, // meditation prompt pending (yes/no)
+  visited: [],     // rooms ever entered (revisit penalties)
+  revisited: [],   // rooms entered more than once (blocks first-visit bonus)
+  revisitCounts: {}, // roomId -> re-entry count (excessive-loop penalties)
+  loopHits: {},      // roomId -> coherence hits actually landed
+  songsPlayed: [], // song:room:instrument keys already performed
+  painted: [],      // painting entries already realized
+  flags: {}
+};
+
+const storyEl   = document.getElementById("story");
+const choicesEl = document.getElementById("choices");
+const cmdEl     = document.getElementById("cmd");
+const locEl     = document.getElementById("location");
+const invLists = {
+  items:    document.getElementById("invtab_items"),
+  notes:    document.getElementById("invtab_notes"),
+  consum:   document.getElementById("invtab_consum"),
+  crystal:  document.getElementById("invtab_crystal")
+};
+const grimLists = {
+  offensive: document.getElementById("grimtab_off"),
+  defensive: document.getElementById("grimtab_def"),
+  field:     document.getElementById("grimtab_field")
+};
+
+/* which tab each item belongs to. Consumables are one-use things with
+   a spagyric or incense block; crystals are the crystal category
+   (mechanics TBD); everything else is a plain item. Sheet music (the
+   physical item and the collected songs) lives in the notes tab. */
+function itemTab(id) {
+  if (ITEMS[id].sheet) return "notes";
+  if (ITEMS[id].crystal) return "crystal";
+  if (ITEMS[id].spagyric || ITEMS[id].incense) return "consum";
+  return "items";
+}
+
+/* which grimoire category a glyph belongs to. Offensive glyphs target
+   the Entity: attacks, the reversal, the finisher, severance, the
+   archive and the karmic drain. Defensive glyphs protect or restore
+   the caster's own field. Field glyphs work on the resonance pool,
+   time, or the flow between the two combatants. */
+const GLYPH_TABS = {
+  khal: "offensive", reve: "offensive", telos: "offensive",
+  cord: "offensive", karm: "offensive", reco: "offensive",
+  rewe: "defensive", shiel: "defensive",
+  tempo: "field", zhahd: "field", rmem: "field", reso: "field"
+};
+
+const DIRNAMES = { n:"north", s:"south", e:"east", w:"west", u:"up", d:"down" };
+const DIRWORDS = {
+  north:"n", south:"s", east:"e", west:"w", up:"u", down:"d",
+  n:"n", s:"s", e:"e", w:"w", u:"u", d:"d"
+};
+
+/* Normalize room exits: accept both long (north) and short (n) keys. */
+(function normalizeExits() {
+  Object.keys(ROOMS).forEach(id => {
+    const r = ROOMS[id];
+    if (!r.exits) return;
+    const norm = {};
+    Object.keys(r.exits).forEach(k => {
+      norm[DIRWORDS[k] || k] = r.exits[k];
+    });
+    r.exits = norm;
+  });
+})();
+
+function fmt(text) {
+  if (Array.isArray(text)) return text.map(fmt);
+  return String(text)
+    .replace(/\[b\]/g, "<b>").replace(/\[\/b\]/g, "</b>")
+    .replace(/\[i\]/g, "<i>").replace(/\[\/i\]/g, "</i>");
+}
+
+/* ---------- glitch text (low coherence) ----------
+   As coherence falls, rendered text corrupts into zalgo: combining
+   diacritics stack above and below letters. Milder tiers FLICKER —
+   a letter flashes glitched for a moment, then settles clean. From
+   ~38CP down, some corruption becomes permanent. At 16CP it
+   spreads to the HUD. Only the player's view of the world frays —
+   markup, entities, spaces, and their own typed echo are untouched. */
+const ZALGO_MARKS = [];
+for (let u = 0x0300; u <= 0x036F; u++) ZALGO_MARKS.push(String.fromCharCode(u));
+
+function zalgoMarks(max) {
+  let marks = "";
+  const n = 1 + Math.floor(Math.random() * max);
+  for (let i = 0; i < n; i++) {
+    marks += ZALGO_MARKS[Math.floor(Math.random() * ZALGO_MARKS.length)];
+  }
+  return marks;
+}
+
+/* tiers ramp linearly within their CP range: at the top of a tier
+   the previous tier's values continue, at the bottom the next peak */
+function glitchTier(cp) {
+  if (cp >= 50) return null;
+  const ramp = (hi, lo, a, b) => a + (b - a) * ((hi - cp) / (hi - lo));
+  if (cp >= 39) return { p: 0.10, marks: 1, flick: 1.0 };
+  if (cp >= 24) return { p: ramp(38, 24, 0.10, 0.25),
+                         marks: Math.round(ramp(38, 24, 1, 3)),
+                         flick: ramp(38, 24, 0.7, 0.4) };
+  if (cp >= 17) return { p: ramp(23, 17, 0.25, 0.50),
+                         marks: Math.round(ramp(23, 17, 3, 5)),
+                         flick: ramp(23, 17, 0.4, 0.3) };
+  if (cp >= 9)  return { p: ramp(16, 9, 0.50, 0.75),
+                         marks: Math.round(ramp(16, 9, 5, 10)),
+                         flick: ramp(16, 9, 0.3, 0.2) };
+  if (cp >= 1)  return { p: ramp(8, 1, 0.75, 0.90),
+                         marks: Math.round(ramp(8, 1, 10, 15)),
+                         flick: ramp(8, 1, 0.2, 0.1) };
+  return { p: 0.99, marks: 20, flick: 0 };
+}
+
+function glitchify(html, tOverride) {
+  const t = tOverride || glitchTier(state.cp);
+  // death is the one thing the field never gets to distort
+  if (!t || state.dead) return html;
+  let inTag = false, inEntity = false, out = "";
+  for (const c of html) {
+    if (inTag) {
+      out += c;
+      if (c === ">") inTag = false;
+      continue;
+    }
+    if (inEntity) {
+      out += c;
+      if (c === ";") inEntity = false;
+      continue;
+    }
+    if (c === "<") { inTag = true; out += c; continue; }
+    if (c === "&") { inEntity = true; out += c; continue; }
+    if (/\w/.test(c) && Math.random() < t.p) {
+      const marks = zalgoMarks(t.marks);
+      out += (Math.random() < t.flick)
+        ? '<span class="flk" data-clean="' + c + '">' + c + marks + '</span>'
+        : c + marks;
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
+/* the interface begins to sicken at 20CP: flickers only at first,
+   permanence scaling in fast; the echo follows at 9CP, also ramped */
+function chromeTier() {
+  const cp = state.cp;
+  const gt = glitchTier(cp);
+  if (!gt || cp > 20) return null;
+  const scale = Math.min(1, (20 - cp) / 11);        // full strength by 9
+  const flick = Math.max(0.2, 1 - (20 - cp) / 6);   // flicker-only at first
+  return { p: gt.p * scale, marks: gt.marks, flick: flick };
+}
+
+function echoTier() {
+  const cp = state.cp;
+  const gt = glitchTier(cp);
+  if (!gt || cp > 9) return null;
+  const scale = Math.min(1, (9 - cp) / 8);
+  return { p: gt.p * scale, marks: gt.marks, flick: gt.flick };
+}
+
+function say(html, cls) {
+  const p = document.createElement("p");
+  if (cls) p.className = cls;
+  // say() is the single place [b]/[i] markers are converted
+  const body = Array.isArray(html) ? html.map(fmt).join("") : fmt(html);
+  p.innerHTML = glitchify(body);
+  // flickering letters flash glitched, then settle clean
+  p.querySelectorAll("span.flk").forEach(sp => {
+    setTimeout(() => { sp.textContent = sp.dataset.clean; },
+               300 + Math.floor(Math.random() * 1200));
+  });
+  storyEl.appendChild(p);
+  storyEl.scrollTop = storyEl.scrollHeight;
+}
+
+function paragraphs(texts, cls) {
+  // accept either a single string or an array of strings
+  const arr = Array.isArray(texts) ? texts : [texts];
+  arr.forEach(t => say(t, cls));
+}
+
+function room() { return ROOMS[state.roomId]; }
+
+/* where the player is standing (null = the middle of the room).
+   Anywhere but the leather chair means they are no longer sitting in it. */
+function setAt(id) {
+  if (state.flags.sitting && id !== "leather_chair") {
+    state.flags.sitting = false;
+    say("You get up from the chair.", "system");
+  }
+  state.at = id;
+  if (id !== "leather_chair") {
+    state.flags.sitting = false;
+    state.flags.redReadSeated = false;   // the read only counts while seated
+  }
+}
+function isSeated() {
+  return !!state.flags.sitting && state.at === "leather_chair";
+}
+
+function itemsHere() {
+  return Object.keys(ITEMS).filter(id => {
+    const it = ITEMS[id];
+    if (it.take) return it.startsIn === state.roomId && !state.taken.includes(id);
+    return it.fixedIn === state.roomId;
+  });
+}
+
+function inInventory(id) { return state.inventory.includes(id); }
+
+/* the room the player just arrived from (null on a fresh look) —
+   lets room descriptions vary by direction of approach */
+let arrivalFrom = null;
+
+function enterRoom(id) {
+  const prevRoomId = state.roomId;
+  arrivalFrom = (prevRoomId && prevRoomId !== id) ? prevRoomId : null;
+  if (prevRoomId && prevRoomId !== id) {
+    state.path.push(prevRoomId);
+    const firstVisit = !state.visited.includes(id);
+    // a room with a single exit can only ever be left the one way —
+    // forced movement is never punished. Otherwise, excessive looping
+    // of the same room CHANCES a coherence hit: low odds at first,
+    // ramping with each pass — and each landed hit hits harder
+    const prevRoom = ROOMS[prevRoomId];
+    const forcedExit = prevRoom &&
+      Object.keys(prevRoom.exits || {}).length === 1;
+    if (!firstVisit && !forcedExit) {
+      if (!state.revisited.includes(id)) state.revisited.push(id);
+      const count = state.revisitCounts[id] = (state.revisitCounts[id] || 0) + 1;
+      if (count >= 3) {
+        const chance = Math.min(1, 0.15 * (count - 2));
+        if (Math.random() < chance) {
+          const hit = (state.loopHits[id] = (state.loopHits[id] || 0) + 1);
+          adjustCP(-Math.max(1, noise(hit))); // always bites
+        }
+      }
+    }
+  }
+  if (!state.visited.includes(id)) state.visited.push(id);
+  state.roomId = id;
+  state.painting = false; // leaving the studio puts the brush down
+  setAt(null);             // entering a room puts you in the middle of it
+  state.doorChoice = null; // and away from any numbered-door choice
+  const r = room();
+  locEl.textContent = r.name;
+  storyEl.innerHTML = "";
+  say("— " + r.name.toUpperCase() + " —", "room-title");
+  // desc can be an array of paragraphs, or a function returning one
+  const desc = typeof r.desc === "function" ? r.desc() : r.desc;
+  paragraphs(desc, "narration");
+  const here = itemsHere(); // found only through the player's own eyes
+  const npcNames = (r.npcs || []).map(nid => NPCS[nid] ? NPCS[nid].name : null)
+                                 .filter(Boolean);
+  if (npcNames.length) {
+    say("A [b]" + npcNames.join("[/b] and a [b]") + "[/b] is here.", "system");
+  }
+  updateCompass();
+  setMusic(id);
+  // itemless rooms are engaged by walking through them
+  checkRoomCleared(id);
+}
+
+function updateCompass() {
+  const exits = room().exits || {};
+  document.querySelectorAll(".dir").forEach(b => {
+    const d = b.dataset.dir;
+    b.disabled = !exits[d];
+    b.classList.toggle("active", !!exits[d]);
+  });
+}
+
+/* the scripted first encounter: the Entity materializes on the first
+   prompt after the grimoire is found — typed or not — and re-forms
+   here if the player tries to slip out of the ritual room first */
+function checkFirstEncounter() {
+  if (state.roomId === "ritual_room" && state.flags.grimoireFound &&
+      !state.flags.entitySpawned && !state.dead) {
+    state.flags.entitySpawned = true;
+    spawnEntity();
+    return true;
+  }
+  return false;
+}
+
+function tryExit(dir) {
+  // locked in combat: there is no fleeing a field engagement
+  if (state.enemy) return "You are locked in combat and cannot flee.";
+  // leaving the ritual room right after the grimoire still counts
+  if (checkFirstEncounter()) return null;
+  const exits = room().exits || {};
+  const ex = exits[dir];
+  if (!ex) return "You can't go that way.";
+  // while choosing doors, going north turns you back into the room
+  if (state.doorChoice && dir === "n") {
+    state.doorChoice = null;
+    enterRoom(state.roomId);
+    return null;
+  }
+  // a "doors" exit: the player must pick which door
+  if (ex.to === "doors") return doorPrompt(state.roomId);
+  if (ex.requires && !state.unlocked.includes(state.roomId + ":" + dir)) {
+    if (inInventory(ex.requires)) {
+      state.unlocked.push(state.roomId + ":" + dir);
+      if (ex.unlockedMsg) paragraphs(ex.unlockedMsg, "system");
+    } else {
+      return ex.lockedMsg || "The way is barred.";
+    }
+  }
+  enterRoom(ex.to);
+  return null;
+}
+
+/* ---------- music ---------- */
+const musicA = new Audio();
+const musicB = new Audio();
+musicA.loop = true; musicB.loop = true;
+let currentTrack = null;
+let activeEl = musicA;
+let fadeTimer = null;
+
+function fadeTo(el, target, done) {
+  const step = 0.05;
+  clearInterval(fadeTimer);
+  fadeTimer = setInterval(() => {
+    if (el.volume > target) {
+      el.volume = Math.max(0, el.volume - step);
+    } else {
+      el.volume = Math.min(1, el.volume + step);
+      if (el.volume >= target) { clearInterval(fadeTimer); if (done) done(); }
+    }
+  }, 100);
+}
+
+function trackFor(roomId) {
+  if (!Object.keys(MUSIC).length) return null;
+  return MUSIC[roomId] || MUSIC._default || null;
+}
+
+function setMusic(roomId) {
+  const track = trackFor(roomId);
+  if (!track) return;
+  if (track === currentTrack) return;
+  currentTrack = track;
+  // crossfade: fade the old element out, the new one in
+  const oldEl = activeEl;
+  const newEl = (activeEl === musicA) ? musicB : musicA;
+  activeEl = newEl;
+  newEl.src = MUSIC_DIR + track;
+  newEl.volume = 0;
+  newEl.play().catch(() => {}); // if blocked, first user gesture will start it
+  if (!oldEl.paused) fadeTo(oldEl, 0, () => oldEl.pause());
+  fadeTo(newEl, 1);
+}
+
+/* browsers block audio until the user interacts; if the very first
+   play() attempt was blocked, retry on later gestures until it takes */
+function firstGesture() {
+  if (!gameStarted) return;
+  if (!currentTrack) { setMusic(state.roomId); return; }
+  if (activeEl.paused) activeEl.play().catch(() => {});
+}
+document.addEventListener("pointerdown", firstGesture);
+document.addEventListener("keydown", firstGesture);
+
+/* ---------- notes ---------- */
+/* Notes are found organically, never by typing their titles:
+   - foundWith: the item the note is hidden in/with. The note is
+     collected automatically the first time the player examines
+     that item (e.g. a note tucked inside a desk).
+   - Or, for special cases, a TRIGGER can hand it over by calling
+     collectNote("note_key") directly. */
+
+function renderNotes() {
+  const list = invLists.notes;
+  list.innerHTML = "";
+  const noteItems = state.inventory.filter(id => itemTab(id) === "notes");
+  if (!state.notes.length && !state.sheets.length && !noteItems.length) {
+    const li = document.createElement("li");
+    li.textContent = "(none found yet)";
+    li.style.cursor = "default";
+    li.style.color = "var(--dim)";
+    list.appendChild(li);
+    return;
+  }
+  state.notes.forEach(id => {
+    const li = document.createElement("li");
+    li.textContent = NOTES[id].name;
+    li.title = "Click to read";
+    li.onclick = () => showNote(id);
+    list.appendChild(li);
+  });
+  noteItems.forEach(id => list.appendChild(buildItemRow(id)));
+  state.sheets.forEach(id => {
+    const li = document.createElement("li");
+    li.textContent = "\u266A " + SHEETS[id].name + " (sheet music)";
+    li.title = "Click to play";
+    li.onclick = () => submitCommand("play " + SHEETS[id].name, false);
+    list.appendChild(li);
+  });
+}
+
+function showNote(id) {
+  const n = NOTES[id];
+  say("— " + n.name.toUpperCase() + " —", "room-title");
+  paragraphs(n.text, "narration");
+}
+
+function findNote(words) {
+  // only notes ALREADY FOUND are searchable. An unfound note can never
+  // be summoned by guessing its title — it must be discovered first.
+  const candidates = state.notes.slice();
+  const num = (words.join(" ").match(/\d+/) || [null])[0];
+  // keywords: meaningful words the player actually typed (a number
+  // alone is NOT enough — with several note categories, the title's
+  // keyword decides)
+  const kw = words.filter(w =>
+    w.length > 2 && !/^\d+$/.test(w) &&
+    !["read","note","notes","the","a","take","get","grab","pick","look",
+       "examine","x","inspect","check"].includes(w));
+  if (!kw.length) return null;
+  return candidates.find(id => {
+    const nm = NOTES[id].name.toLowerCase();
+    const numOk = !num || nm.includes(num);
+    return numOk && kw.some(w => nm.includes(w));
+  });
+}
+
+function collectNote(id) {
+  if (!state.notes.includes(id)) {
+    state.notes.push(id);
+    renderNotes();
+    adjustAP(noise(5)); // lore items steady alignment
+    say("You found: [b]" + NOTES[id].name + "[/b]. It is kept in your " +
+        "Notes list, and can be reread at any time.", "system");
+  }
+  showNote(id);
+}
+
+/* ---------- coherence & alignment ---------- */
+const hudEl  = document.getElementById("hud");
+const hudCP  = document.getElementById("hudcp");
+const hudAP  = document.getElementById("hudap");
+const hudRES = document.getElementById("hudres");
+
+/* interface chrome that the corruption spreads into below 16CP */
+const chromeEls = (() => {
+const els = ["lookbtn", "journalbtn", "savebtn", "loadbtn", "go",
+             "invbtn", "grimbtn"]
+  .map(i => document.getElementById(i));
+  document.querySelectorAll(
+    ".dir, #journalhead span, #journalfoot, " +
+    "#invhead span, #grimhead span"
+  ).forEach(e => els.push(e));
+  els.forEach(e => { e.dataset.orig = e.textContent; });
+  return els;
+})();
+
+function renderStats() {
+  hudCP.textContent = "Coherence " + state.cp + "%";
+  hudAP.textContent = "Alignment " + state.ap + "%";
+  // resonance: your field's average (4-way with the enemy in combat)
+  hudRES.textContent = "Resonance " + Math.round(resonance()) + "%";
+  // the alarm red deepens continuously as coherence falls to 0
+  const t = state.cp < 25 ? 1 - state.cp / 25 : 0;
+  hudEl.classList.toggle("low", t > 0);
+  if (t > 0) {
+    const col = "rgb(217," +
+      Math.round(138 - 78 * t) + "," +
+      Math.round(138 - 78 * t) + ")";
+    hudCP.style.color = col;
+    hudAP.style.color = col;
+    hudRES.style.color = col;
+  } else {
+    hudCP.style.color = "";
+    hudAP.style.color = "";
+    hudRES.style.color = "";
+  }
+  // from 20CP down the corruption spreads into the interface itself:
+  // flickers only at first, permanence scaling in fast. It recedes
+  // if coherence is restored
+  const ct = chromeTier();
+  chromeEls.forEach(e => {
+    if (!ct) { e.textContent = e.dataset.orig; return; }
+    e.innerHTML = glitchify(e.dataset.orig, ct);
+    e.querySelectorAll("span.flk").forEach(sp => {
+      setTimeout(() => { sp.textContent = sp.dataset.clean; },
+                 300 + Math.floor(Math.random() * 1200));
+    });
+  });
+}
+function adjustCP(delta) {
+  state.cp = Math.max(0, Math.min(100, Math.round(state.cp + delta)));
+  renderStats();
+}
+function adjustAP(delta) {
+  state.ap = Math.max(0, Math.min(100, Math.round(state.ap + delta)));
+  renderStats();
+}
+
+/* every cast value carries noise, and noise is field noise: its
+   magnitude is governed by RESONANCE — the 4-way average of your
+   coherence & alignment and your opponent's (or your own 2-way
+   average outside combat). A coherent field is a QUIET field:
+   high resonance pulls noise down to ±1–3, while low resonance
+   lets it swell to a cap of ±11, on a continuous ramp */
+/* a direct hit to the pool (↯ zhahd, resonance spagyrics...) does
+   not bounce back instantly: the distortion persists and averages
+   back out over roughly 5 turns */
+function resonance() {
+  // Ӝ reso can pin the pool in place for a few turns
+  if (state.resLock && state.resLock.turns > 0)
+    return state.resLock.value;
+  const base = state.enemy
+    ? (state.cp + state.ap + state.enemy.cp + state.enemy.ap) / 4
+    : (state.cp + state.ap) / 2;
+  return Math.max(0, Math.min(100, base - state.resDist));
+}
+function resonanceBase() {
+  return state.enemy
+    ? (state.cp + state.ap + state.enemy.cp + state.enemy.ap) / 4
+    : (state.cp + state.ap) / 2;
+}
+function tickResonance() {
+  if (state.resLock) {
+    state.resLock.turns--;
+    if (state.resLock.turns <= 0) {
+      // lock released: the gap becomes distortion that eases back off
+      state.resDist = Math.round(resonanceBase() - state.resLock.value);
+      state.resLock = null;
+    }
+    renderStats();
+    return;
+  }
+  if (!state.resDist) return;
+  state.resDist = Math.round(state.resDist * 0.8);
+  if (Math.abs(state.resDist) < 1) state.resDist = 0;
+  renderStats();
+}
+function noiseCeiling() {
+  const r = resonance();
+  return Math.max(3, Math.min(11, Math.round(11 - 8 * (r / 100))));
+}
+const noise = n => {
+  const mag = 1 + Math.floor(Math.random() * noiseCeiling());
+  const out = n + (Math.random() < 0.5 ? -mag : mag);
+  // field noise can zero a value, never flip its sign
+  return n >= 0 ? Math.max(0, out) : Math.min(0, out);
+};
+
+function alignMult(ap) {
+  if (ap < 25) return 0.5;
+  if (ap < 60) return 1;
+  if (ap < 80) return 1.5;
+  if (ap < 100) return 2;
+  return 2.5;
+}
+
+/* ---------- glyphs & the cast pipeline ---------- */
+function glyphCostText(g) {
+  const parts = [];
+  if (g.costCP) parts.push(g.costCP + " CP");
+  if (g.costAP) parts.push(g.costAP + " AP");
+  // costs paid in something other than CP/AP (e.g. rmem drains the pool)
+  if (g.costNote) parts.push(g.costNote);
+  return parts.length ? " (" + parts.join(", ") + ")" : " (free)";
+}
+
+function learnGlyph(id) {
+  if (state.grimoire.includes(id)) return false;
+  state.grimoire.push(id);
+  renderGrimoire();
+  say("You have learned the glyph [b]" + GLYPHS[id].glyph + " " +
+      GLYPHS[id].phonetic + "[/b] — " + GLYPHS[id].name + ".", "system");
+  return true;
+}
+
+function attemptCast(id) {
+  const g = GLYPHS[id];
+  if (!g || !state.grimoire.includes(id)) {
+    return say("You don't know that glyph yet.", "system");
+  }
+  // costs are exact; only effects carry field noise
+  const costCP = g.costCP, costAP = g.costAP;
+  // a cast beyond your means still costs you something — and the turn
+  if (state.cp < costCP || state.ap < costAP) {
+    adjustCP(-1); adjustAP(-1);
+    const lacking = [];
+    if (state.cp < costCP) lacking.push("CP");
+    if (state.ap < costAP) lacking.push("AP");
+    return say("Cast failed: Not enough " + lacking.join(" and ") +
+               ". The failed cast costs your turn.", "system");
+  }
+  // karm can't be cast at full alignment: there is nowhere for the
+  // stolen alignment to flow, so the glyph is simply not castable
+  if (g.effect === "karmic" && state.ap >= 100) {
+    return say("⌯ Your alignment is already at its ceiling — the " +
+               "karmic link has nowhere to flow. The glyph cannot " +
+               "be cast.", "system");
+  }
+  // the alignment multiplier is read BEFORE the cast's AP cost is paid
+  const mult = alignMult(state.ap);
+  adjustCP(-costCP); adjustAP(-costAP);
+  switch (g.effect) {
+    case "restore": // ✺ rewe: reweave your field
+      adjustCP(noise(g.power * mult));
+      say("✺ Your field reweaves. Coherence " + state.cp + "%.", "system");
+      break;
+    case "ward":    // ⛉ shiel
+      if (state.enemy) {
+        state.ward = true;
+        say("⛉ The ward hums around you.", "system");
+      } else {
+        say("⛉ The ward hums around you, but nothing comes.", "system");
+      }
+      break;
+    case "discharge": { // ↯ zhahd: siphon resonance into alignment
+      const rp = Math.round(resonance());
+      const drain = Math.round(rp / 3);       // 33% of the pool
+      state.resDist += drain;                 // pool stays drained a while
+      const gain = noise(drain);
+      adjustAP(gain);
+      say("↯ The field discharges: " + gain + " resonance bends into " +
+          "your alignment. Alignment " + state.ap + "%.", "system");
+      break;
+    }
+    case "swap": { // Ƨ rmem: coherence and alignment trade places
+      // the reversal disturbs the field: half the resonance pool drains
+      const drain = Math.round(resonance() / 2);
+      state.resDist += drain;
+      const t = state.cp;
+      state.cp = state.ap;
+      state.ap = t;
+      renderStats();
+      say("Ƨ Flow reverses. Coherence " + state.cp + "%, Alignment " +
+          state.ap + "%. Half the resonance pool disperses.",
+          "system");
+      break;
+    }
+    case "stabilize": // Ӝ reso: pin the pool in place
+      state.resLock = { value: Math.round(resonance()), turns: 3 };
+      renderStats();
+      say("Ӝ Resonance steadies, pinned at " +
+          Math.round(resonance()) + "% for the next few turns.", "system");
+      break;
+    default:
+      // enemy-targeting effects need an active encounter (combat build)
+      if (!state.enemy) {
+        return say("There is nothing here to cast that upon.", "system");
+      }
+      castGlyphOnEnemy(id, mult);
+      break;
+  }
+}
+
+function renderGrimoire() {
+  // the grimoire window is only reachable once the grimoire is found
+  const btn = document.getElementById("grimbtn");
+  btn.style.display = state.grimoire.length ? "" : "none";
+  // rebuild all three category lists on every change
+  Object.values(grimLists).forEach(l => { l.innerHTML = ""; });
+  if (!state.grimoire.length) {
+    const li = document.createElement("li");
+    li.textContent = "(none learned yet)";
+    li.style.cursor = "default";
+    li.style.color = "var(--dim)";
+    grimLists.offensive.appendChild(li);
+    return;
+  }
+  // glyphs removed from the game (old saves) are silently dropped and
+  // default to the field tab if they have no category
+  state.grimoire.filter(id => GLYPHS[id]).forEach(id => {
+    const g = GLYPHS[id];
+    const li = document.createElement("li");
+    li.textContent = g.glyph + " " + g.phonetic + " — " + g.name +
+                     glyphCostText(g);
+    li.onclick = () => {
+      if (tipSuppressed) return;
+      closeGrim();   // the window gets out of the way so the cast is visible
+      submitCommand(g.phonetic, false);
+    };
+    // hovering 1s shows the glyph's description; so does a 1s
+    // long-press on mobile
+    attachTip(li, () => glyphTipHtml(id));
+    grimLists[GLYPH_TABS[id] || "field"].appendChild(li);
+  });
+}
+
+/* ---------- glyph tooltip ----------
+   One floating box, shared by every glyph entry. Desktop: hover.
+   Mobile: press and hold 1s. It never swallows taps: a plain
+   tap still casts, a held press reads instead. */
+const glyphTip = document.getElementById("glyphtip");
+const GLYPH_TIP_DELAY = 1000; // ms of hover / press before it opens
+let tipHideTimer = null;
+let tipOpen = false;      // the tooltip is currently displayed
+let tipSuppressed = false; // the tap that just long-pressed: no cast
+
+function glyphTipHtml(id) {
+  const g = GLYPHS[id];
+  const cost = glyphCostText(g).replace(/[()]/g, "").trim();
+  return "<b>" + g.glyph + " " + g.name + "</b>" +
+    (cost ? " <i>(" + cost + ")</i>" : "") +
+    "<br>" + g.desc;
+}
+function itemTipHtml(id, hint) {
+  const it = ITEMS[id];
+  const where = handOf(id) ? " <i>(" + handOf(id) + " hand)</i>" : "";
+  return "<b>" + it.name + "</b>" + where + "<br>" +
+    (it.examine || "You see nothing special about it.") +
+    (hint ? "<br><i>" + hint + "</i>" : "");
+}
+/* wires hover (1s) / long-press (1s) on a list row to the shared
+   tooltip. getHtml() is called when the box opens, so it is current. */
+function attachTip(li, getHtml) {
+  li.classList.add("glyphrow");
+  let hoverTimer = null, pressTimer = null;
+  li.addEventListener("mouseenter", () => {
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => showTip(li, getHtml()), GLYPH_TIP_DELAY);
+  });
+  li.addEventListener("mouseleave", () => {
+    clearTimeout(hoverTimer);
+    hideGlyphTip();
+  });
+  li.addEventListener("touchstart", () => {
+    clearTimeout(pressTimer);
+    hideGlyphTip();
+    pressTimer = setTimeout(() => showTip(li, getHtml()), GLYPH_TIP_DELAY);
+  }, { passive: true });
+  li.addEventListener("touchmove", () => {
+    clearTimeout(pressTimer);
+    hideGlyphTip();
+  }, { passive: true });
+  li.addEventListener("touchcancel", () => clearTimeout(pressTimer));
+  li.addEventListener("touchend", (e) => {
+    clearTimeout(pressTimer);
+    if (tipOpen) {
+      // a long-press that opened the tooltip must not also click;
+      // the box stays up briefly so it can be read after lifting
+      e.preventDefault();
+      tipSuppressed = true;   // belt and braces: no click after a long-press
+      setTimeout(() => { tipSuppressed = false; }, 500);
+      clearTimeout(tipHideTimer);
+      tipHideTimer = setTimeout(hideGlyphTip, 4000);
+    }
+  });
+  // stop the browser's own long-press menu / text selection
+  li.addEventListener("contextmenu", e => e.preventDefault());
+}
+function showTip(li, html) {
+  glyphTip.innerHTML = html;
+  glyphTip.style.display = "block";
+  const r = li.getBoundingClientRect();
+  let left = Math.max(8, Math.min(r.left, window.innerWidth - 310));
+  let top = r.bottom + 6;
+  if (top + glyphTip.offsetHeight > window.innerHeight - 8)
+    top = Math.max(8, r.top - glyphTip.offsetHeight - 6);
+  glyphTip.style.left = left + "px";
+  glyphTip.style.top = top + "px";
+  tipOpen = true;
+}
+
+function hideGlyphTip() {
+  clearTimeout(tipHideTimer);
+  glyphTip.style.display = "none";
+  tipOpen = false;
+}
+
+/* ---------- combat ----------
+   Both sides run the same mirror math: costs with noise, failure
+   chance from coherence shifted by alignment, alignment multipliers.
+   The enemy's stats are never shown. Combat ends when either side's
+   coherence reaches 0; the player acts first, the enemy answers
+   after every command. */
+function spawnEntity(opts) {
+  const o = opts || {};
+  // the field announces its creature one of two ways
+  const arrival = [
+    "A chill runs down your spine that stops you cold. A slimy " +
+    "black mist creeps into form in front of you, coalescing into " +
+    "a vaguely humanoid shape that shifts and morphs like liquid " +
+    "smoke.",
+    "You feel something breathing down your neck. You turn around " +
+    "to wisps of black smoke pooling together and coalescing into " +
+    "a vaguely humanoid form that shifts and shimmers like liquid."
+  ];
+  paragraphs(arrival[Math.floor(Math.random() * arrival.length)],
+             "narration");
+  say("You have encountered an [b]" + (o.name || "Entity") + "[/b].",
+      "system");
+  state.enemy = {
+    name: o.name || "Entity",
+    cp: (o.cp !== undefined) ? o.cp : 25,
+    ap: (o.ap !== undefined) ? o.ap : 0,
+    cap: (o.cap !== undefined) ? o.cap : 25,
+    glyphs: o.glyphs || ["khal"],
+    skipTurn: false,
+    ward: false
+  };
+  drawGrimoire();
+  say("— Your turn —", "system");
+}
+
+function recordCast(caster, id) {
+  state.lastCast = { caster: caster, id: id };
+}
+
+/* ---------- random encounters ---------- */
+/* a random entity coalesces from the field while the player is
+   exploring an uncleared room. The weaker the player's coherence,
+   the more the field leaks in. Encounters only reach the player
+   after the grimoire is found. */
+function randomEncounterCheck() {
+  if (!state.flags.grimoireFound) return;
+  if (state.enemy || state.dead || state.meditating) return;
+  // never mid-interaction: painting, a door choice, a conversation
+  if (state.painting || state.doorChoice || activeDialogue) return;
+  const rid = state.roomId;
+  if (state.clearedRooms.includes(rid)) return;
+  // rooms with nothing to engage have no "uncleared" state
+  const interactables = Object.keys(ITEMS).filter(i =>
+    ITEMS[i].fixedIn === rid ||
+    (ITEMS[i].take && ITEMS[i].startsIn === rid));
+  if (!interactables.length) return;
+  // 3% at full coherence, rising to 13% as it breaks down
+  const chance = 0.03 + (100 - state.cp) * 0.001;
+  if (Math.random() >= chance) return;
+  spawnRandomEntity();
+}
+
+function spawnRandomEntity() {
+  // khal, rewe, and one more drawn from the field at random
+  const pool = Object.keys(GLYPHS).filter(g =>
+    g !== "telos" && g !== "reco");
+  const third = pool[Math.floor(Math.random() * pool.length)];
+  spawnEntity({ cp: 25, ap: 0, cap: 25,
+                glyphs: ["khal", "rewe", third] });
+}
+
+/* ---------- meditation ---------- */
+function startMeditation() {
+  if (state.enemy) {
+    return say("You cannot find stillness with an Entity facing you.",
+               "system");
+  }
+  // stillness takes time to gather again: once every 30 turns
+  if (state.turns - state.lastMeditate < 30) {
+    return say("You meditated recently. Your field needs time to " +
+               "settle again.", "system");
+  }
+  state.meditating = true;
+  return say("Meditate here? Yes/no", "system");
+}
+
+function doMeditate() {
+  state.meditating = false;
+  paragraphs("You sit down and close your eyes, slowing your field " +
+    "and finding clarity in the stillness.", "narration");
+  // an uncleared room almost guarantees an interruption; a room
+  // cleared on the first visit is almost always safe. Before the
+  // grimoire is found, nothing in the field reaches the player.
+  const rid = state.roomId;
+  let risk;
+  if (!state.clearedRooms.includes(rid)) risk = 0.85;
+  else if (state.clearedFirstTry.includes(rid)) risk = 0.05;
+  else risk = 0.25;   // cleared, but only after a revisit
+  if (!state.flags.grimoireFound) risk = 0;
+  if (Math.random() < risk) {
+    paragraphs("The stillness is broken.", "narration");
+    spawnRandomEntity();
+    return;
+  }
+  const gain = noise(25);
+  adjustCP(gain);
+  state.lastMeditate = state.turns;   // the cooldown begins now
+  say("You rise restored. Coherence " + state.cp + "%.", "system");
+}
+
+function checkCombatEnd() {
+  const en = state.enemy;
+  if (!en) return;
+  if (en.cp <= 0) {
+    say("The Entity has lost its stream of coherence and returned " +
+        "to the field.", "system");
+    state.enemy = null;
+    state.ward = false;
+    state.playerSkip = false;
+    state.lastCast = null;
+    stowGrimoire();
+    return;
+  }
+  if (state.cp <= 0) {
+    // in combat, a broken stream is death
+    state.enemy = null;
+    stowGrimoire(true);
+    state.ward = false;
+    state.playerSkip = false;
+    state.dead = true;
+    paragraphs("Your stream of coherence has been broken. Your " +
+      "awareness disperses back into the field.", "narration");
+    say("Reincarnate? (yes/no)", "system");
+  }
+}
+
+/* the player's cast lands on the enemy */
+function castGlyphOnEnemy(id, mult) {
+  const g = GLYPHS[id];
+  const en = state.enemy;
+  switch (g.effect) {
+    case "attack": { // ⟁ khal
+      if (en.ward) {
+        en.ward = false;
+        say("Your glyph shatters against the Entity's ward.",
+            "system");
+        break;
+      }
+      const dmg = noise(g.power * mult);
+      en.cp = Math.max(0, en.cp - dmg);
+      if (g.apGain) adjustAP(noise(g.apGain)); // stacks on success
+      say(g.glyph + " The glyph lands — the Entity takes " + dmg +
+          " damage.", "system");
+      break;
+    }
+    case "archive": { // 𐜄 reco: catalog the enemy's last cast
+      const drain = noise(g.power);
+      en.cp = Math.max(0, en.cp - drain);
+      if (state.lastCast && state.lastCast.caster === "enemy") {
+        const glyphId = state.lastCast.id;
+        if (!state.grimoire.includes(glyphId)) {
+          learnGlyph(glyphId);
+        } else {
+          say("The glyph is already inscribed in your grimoire.",
+              "system");
+        }
+      } else {
+        say("The archive finds no glyph to catalog.", "system");
+      }
+      say("Ƨ drains " + drain + " coherence from the Entity.",
+          "system");
+      break;
+    }
+    case "reverse": { // ⇋ revé: turn the last cast glyph back
+      const lc = state.lastCast;
+      if (lc && lc.caster === "enemy" &&
+          GLYPHS[lc.id].effect === "attack") {
+        const dmg = noise(GLYPHS[lc.id].power * mult);
+        en.cp = Math.max(0, en.cp - dmg);
+        say("⇋ The reversal turns the glyph back — the Entity takes " +
+            dmg + " damage.", "system");
+      } else {
+        say("⇋ The reversal finds nothing to turn.", "system");
+      }
+      break;
+    }
+    case "telos": // ⌖ télos: collapse, outright
+      en.cp = 0;
+      state.cp = 100;   // restored outright
+      state.ap = 0;     // alignment destroyed
+      renderStats();
+      say("⌖ Télos. The Entity's coherence was severed.",
+          "system");
+      break;
+    case "tempo": // ⧗ tempo: lock the enemy's time
+      en.skipTurn = true;
+      say("⧗ The Entity's field locks — its next turn passes.",
+          "system");
+      break;
+    case "severance": { // 𓌷 cord: cut a glyph out of its grimoire
+      if (en.ward) {
+        en.ward = false;
+        say("Your glyph shatters against the Entity's ward.",
+            "system");
+        break;
+      }
+      // only real glyphs can be cut; the last one is never severed
+      const eKnown = en.glyphs.filter(id => GLYPHS[id]);
+      if (eKnown.length > 1) {
+        const cut = eKnown[Math.floor(Math.random() * eKnown.length)];
+        // gone from its repertoire until it catalogs the glyph again
+        en.glyphs = en.glyphs.filter(id => id !== cut);
+        say("𓌷 The cord severs — the Entity loses " +
+            GLYPHS[cut].glyph + " " + GLYPHS[cut].name + ".", "system");
+      } else {
+        say("𓌷 The cord snaps, but there is nothing left to sever.",
+            "system");
+      }
+      if (g.apGain) adjustAP(noise(g.apGain));
+      break;
+    }
+    case "karmic": { // ⌯ karm: drain half its alignment into yours
+      if (en.ward) {
+        en.ward = false;
+        say("Your glyph shatters against the Entity's ward.",
+            "system");
+        break;
+      }
+      const steal = Math.floor(en.ap / 2);
+      en.ap -= steal;
+      const gain = noise(steal);
+      adjustAP(gain);
+      // the link also empties the resonance pool completely
+      const drained = Math.max(0, Math.round(resonance()));
+      state.resDist += drained;
+      renderStats();
+      say("⌯ The karmic link pulls " + steal + " of its alignment " +
+          "into yours. Alignment " + state.ap + "%.", "system");
+      break;
+    }
+  }
+  recordCast("player", id);
+  checkCombatEnd();
+}
+
+/* the enemy's mind: it reads the field and chooses deliberately.
+   A glyph it can't afford is never chosen. The priorities are a
+   baseline, not a script — every rule rolls, and sometimes the
+   creature acts on pure impulse. */
+function enemyChooseGlyph(en) {
+  const canCast = id => en.glyphs.includes(id) &&
+    en.cp >= GLYPHS[id].costCP && en.ap >= GLYPHS[id].costAP &&
+    // karm is not castable at full alignment, same as for the player:
+    // there is nowhere for the stolen alignment to flow
+    !(GLYPHS[id].effect === "karmic" && en.ap >= en.cap);
+  // against your ward it holds back its offensive glyphs (the ones the
+  // ward blocks) — usually; 1 turn in 10 it casts into the ward anyway
+  const warded = state.ward && Math.random() < 0.9;
+  const has = id => canCast(id) &&
+    !(warded && WARD_BLOCKED.includes(GLYPHS[id].effect));
+  const lc = state.lastCast;
+  // pure impulse: a completely unpredictable pick, 1 turn in 10
+  if (Math.random() < 0.10) {
+    const affordable = en.glyphs.filter(canCast);
+    if (affordable.length) {
+      return affordable[Math.floor(Math.random() * affordable.length)];
+    }
+  }
+  // 1. reversal: usually it turns your last attack back
+  if (lc && lc.caster === "player" &&
+      GLYPHS[lc.id].effect === "attack" && has("reve") &&
+      Math.random() < 0.8) return "reve";
+  // 2. reweave when badly hurt (usually)
+  if (en.cp <= en.cap * 0.3 && has("rewe") &&
+      Math.random() < 0.85) return "rewe";
+  // 4. the desperation finisher (usually, when it's that bad)
+  if (en.ap >= 100 && en.cp <= en.cap * 0.2 && has("telos") &&
+      Math.random() < 0.7) return "telos";
+  // 5. lock the player's time, now and then
+  if (has("tempo") && Math.random() < 0.15) return "tempo";
+  // 6. ward up when the player is landing hits
+  if (!en.ward && has("shiel") &&
+      lc && lc.caster === "player" && Math.random() < 0.3)
+    return "shiel";
+  // 6b. karmic: drain when the player's alignment runs high
+  if (state.ap >= 50 && has("karm") &&
+      Math.random() < 0.45) return "karm";
+  // 6c. severance: cut glyphs away once the player knows too many
+  if (state.grimoire.length > 3 && has("cord") &&
+      Math.random() < 0.35) return "cord";
+  // 6d. reverse flow: trade a fat alignment for coherence
+  if (en.ap > en.cp * 2 && has("rmem") &&
+      Math.random() < 0.5) return "rmem";
+  // 6f. stabilize: settle the field while it's distorted
+  if (state.resDist >= 10 && has("reso") &&
+      Math.random() < 0.25) return "reso";
+  // 7. warded: don't mindlessly attack — settle on anything useful it
+  //    can still cast (charge, reweave, ward, lock, swap, stabilize...)
+  if (warded) {
+    const alt = en.glyphs.filter(has);
+    if (alt.length) return alt[Math.floor(Math.random() * alt.length)];
+  }
+  // 8. default: attack
+  return canCast("khal") ? "khal" : en.glyphs.find(canCast) || en.glyphs[0];
+}
+
+/* resolve one enemy glyph against the player (mirrors the player's
+   own resolution: costs paid up front, ward blocking, then effect) */
+function enemyApplyEffect(id, mult) {
+  const en = state.enemy;
+  const g = GLYPHS[id];
+  switch (g.effect) {
+    case "attack": { // ⟁ khal
+      const dmg = noise(g.power * mult);
+      adjustCP(-dmg);
+      if (g.apGain) en.ap = Math.min(en.cap, en.ap + noise(g.apGain));
+      say("The Entity casts " + g.glyph + ". You take " + dmg +
+          " damage. Coherence " + state.cp + "%.", "system");
+      break;
+    }
+    case "restore": // ✺ rewe
+      en.cp = Math.min(en.cap, en.cp + noise(g.power * mult));
+      say("The Entity casts " + g.glyph + " — its field reweaves.",
+          "system");
+      break;
+    case "archive": { // 𐜄 reco: drains coherence, catalogs your glyph
+      const drain = noise(g.power);
+      adjustCP(-drain);
+      if (state.lastCast && state.lastCast.caster === "player") {
+        const seen = state.lastCast.id;
+        if (!en.glyphs.includes(seen)) {
+          en.glyphs.push(seen);
+          say("The Entity's archive catalogs your " +
+              GLYPHS[seen].glyph + ".", "system");
+        }
+      }
+      say("Ƨ drains " + drain + " coherence from you.", "system");
+      break;
+    }
+    case "reverse": { // ⇋ revé: your last attack comes back
+      const lc = state.lastCast;
+      if (lc && lc.caster === "player" &&
+          GLYPHS[lc.id].effect === "attack") {
+        const dmg = noise(GLYPHS[lc.id].power * mult);
+        adjustCP(-dmg);
+        say("⇋ The Entity turns your own glyph back — you take " +
+            dmg + " damage.", "system");
+      } else {
+        say("⇋ The Entity's reversal finds nothing to turn.",
+            "system");
+      }
+      break;
+    }
+    case "ward": // ⛉ shiel
+      en.ward = true;
+      say("⛉ The Entity wards its field.", "system");
+      break;
+    case "telos": // ⌖ télos: it all comes down to this
+      state.cp = 0;
+      en.cp = Math.min(en.cap, 100);
+      en.ap = 0;
+      renderStats();
+      say("⌖ The Entity spends everything. Télos.", "system");
+      break;
+    case "tempo": // ⧗ tempo: your next turn passes
+      state.playerSkip = true;
+      say("⧗ Your field locks — your next turn will pass.", "system");
+      break;
+    case "discharge": { // ↯ zhahd: charges its alignment from the pool
+      const drain = Math.round(resonance() / 3);
+      state.resDist += drain;
+      const gain = noise(drain);
+      en.ap = Math.min(en.cap, en.ap + gain);
+      say("↯ The Entity siphons resonance into its alignment.", "system");
+      break;
+    }
+    case "severance": { // 𓌷 cord: a glyph is torn from your grimoire
+      // only real glyphs can be cut; the last one is never severed
+      const known = state.grimoire.filter(id => GLYPHS[id]);
+      if (known.length > 1) {
+        const cut = known[Math.floor(Math.random() * known.length)];
+        // gone from the grimoire until it is learned again
+        state.grimoire = state.grimoire.filter(id => id !== cut);
+        renderGrimoire();   // the panel must stop listing it right away
+        say("𓌷 The cord severs — you lose " + GLYPHS[cut].glyph +
+            " " + GLYPHS[cut].name + ". You must learn it again.", "system");
+      } else {
+        say("𓌷 The cord snaps, but there is nothing left to sever.",
+            "system");
+      }
+      if (g.apGain) en.ap = Math.min(en.cap, en.ap + noise(g.apGain));
+      break;
+    }
+    case "karmic": { // ⌯ karm: drains half your alignment into its own
+      const steal = Math.floor(state.ap / 2);
+      state.ap -= steal;
+      const gain = noise(steal);
+      en.ap = Math.min(en.cap, en.ap + gain);
+      // the link also empties the resonance pool completely
+      const drained = Math.max(0, Math.round(resonance()));
+      state.resDist += drained;
+      renderStats();
+      say("⌯ The karmic link pulls " + steal + " of your alignment " +
+          "into its own.", "system");
+      break;
+    }
+    case "swap": { // Ƨ rmem: its coherence and alignment trade places
+      // the reversal disturbs the field: half the resonance pool drains
+      state.resDist += Math.round(resonance() / 2);
+      const t = en.cp;
+      en.cp = Math.min(en.cap, en.ap);
+      en.ap = Math.min(en.cap, t);
+      renderStats();
+      say("Ƨ The Entity's flow reverses. Half the resonance pool " +
+          "disperses.", "system");
+      break;
+    }
+    case "stabilize": // Ӝ reso: it pins the pool in place
+      state.resLock = { value: Math.round(resonance()), turns: 3 };
+      renderStats();
+      say("Ӝ The Entity steadies the field's resonance.", "system");
+      break;
+  }
+  recordCast("enemy", id);
+  checkCombatEnd();
+}
+
+/* the enemy's turn: after every player command */
+function enemyTurn() {
+  const en = state.enemy;
+  if (!en) return;
+  if (en.skipTurn) {
+    en.skipTurn = false;
+    say("The Entity's field is locked — it cannot act.", "system");
+    return;
+  }
+  const id = enemyChooseGlyph(en);
+  const g = GLYPHS[id];
+  // costs are exact; only effects carry field noise
+  const costCP = g.costCP, costAP = g.costAP;
+  if (en.cp < costCP || en.ap < costAP) {
+    // the mirror of desperation: it costs the creature something
+    en.cp = Math.max(0, en.cp - 1);
+    en.ap = Math.max(0, en.ap - 1);
+    say("The Entity reaches for a glyph beyond its means.", "system");
+    recordCast("enemy", id);
+    return checkCombatEnd();
+  }
+  // the alignment multiplier is read BEFORE the cast's AP cost is paid
+  const mult = alignMult(en.ap);
+  en.cp -= costCP;
+  en.ap -= costAP;
+  // the player's ward blocks every incoming offensive glyph:
+  // attacks, severance (cord) and karmic drain (karm)
+  if (state.ward && WARD_BLOCKED.includes(g.effect)) {
+    state.ward = false;
+    say("The Entity casts " + g.glyph + " — the glyph shatters " +
+        "against your ward.", "system");
+    recordCast("enemy", id);
+    return;
+  }
+  enemyApplyEffect(id, mult);
+}
+
+/* one full round: the player's action — typed, clicked, whatever —
+   then the field's answer. Every player action routes through here.
+   A failed cast costs no turn: the field waits. */
+let turnSpent = true;
+function runTurn(playerAction) {
+  if (state.playerSkip) {
+    state.playerSkip = false;
+    say("Your field is locked — your turn passes.", "system");
+  } else {
+    turnSpent = true;
+    playerAction();
+  }
+  // the Entity's ward lasts one turn only: whatever you did, it fades now
+  if (state.enemy) state.enemy.ward = false;
+  // the resonance pool averages back out, one turn at a time
+  tickResonance();
+  state.turns++;   // one spent turn has passed
+  // dangerously low coherence eats the player's own journal
+  corruptJournal();
+  // extremely low coherence slowly drains alignment (always bites)
+  if (state.cp <= 10) adjustAP(-Math.max(1, noise(1)));
+  // the enemy answers every action with a turn of its own
+  if (state.enemy) {
+    say("— The Entity's turn —", "system");
+    enemyTurn();
+    // your ward lasts one turn only: it fades after the Entity acts,
+    // whether or not it was tested
+    state.ward = false;
+    tickResonance();
+    if (state.enemy && !state.dead) say("— Your turn —", "system");
+  }
+}
+
+function reincarnate() {
+  state.dead = false;
+  state.pendingHold = null;
+  state.cp = 50;      // awareness gathers back to its starting point
+  state.ap = 0;
+  state.resDist = 0;
+  state.ward = false;
+  state.path = [];
+  // the Entity is waiting back where it formed: it re-coalesces
+  // on your next prompt in the ritual room
+  state.flags.entitySpawned = false;
+  renderStats();
+  // items, glyphs, and notes stay; so does the run's memory
+  say("You gather yourself back out of the field, whole again.",
+      "system");
+  enterRoom("mansion_atrium");
+}
+
+/* ---------- room engagement (clears & backtracking) ---------- */
+function recordExamined(itemId) {
+  const list = state.examined[state.roomId] = state.examined[state.roomId] || [];
+  if (!list.includes(itemId)) list.push(itemId);
+  checkRoomCleared(state.roomId);
+}
+
+function checkRoomCleared(roomId) {
+  if (state.clearedRooms.includes(roomId)) return;
+  const ids = Object.keys(ITEMS).filter(i =>
+    !ITEMS[i].noClear &&
+    (ITEMS[i].fixedIn === roomId ||
+    (ITEMS[i].take && ITEMS[i].startsIn === roomId)));
+  const ex = state.examined[roomId] || [];
+  const engaged = ids.every(i => ex.includes(i) || state.taken.includes(i));
+  if (!engaged) return;
+  // a flawless first visit rewards alignment; clears on a revisit
+  // (still possible, still worth something) reward coherence only
+  const firstVisitClear = !state.revisited.includes(roomId);
+  state.clearedRooms.push(roomId);
+  if (firstVisitClear) state.clearedFirstTry.push(roomId);
+  if (ids.length) {
+    adjustCP(firstVisitClear ? noise(10) : noise(5));
+    if (firstVisitClear) adjustAP(noise(15));
+  }
+}
+
+/* ---------- numbered-door helper ---------- */
+function doorPrompt(roomId) {
+  // the player now stands before the doors, choosing
+  state.doorChoice = roomId;
+  const doors = NUMBERED_DOORS[roomId];
+  const count = doors ? Object.keys(doors).length : 3;
+  return "Before you are " + count + " doors.";
+}
+
+/* ---------- painting (art studio puzzle) ---------- */
+function normalizePaint(s) {
+  s = (" " + s.toLowerCase().trim().replace(/[!?.,;:'"]/g, " ") + " ")
+        .replace(/\s+/g, " ").trim();
+  s = s.replace(/^paint\s+/, "");
+  s = s.replace(/^(the|a|an)\s+/, "");
+  // "paint a picture of the mansion" -> "mansion"
+  s = s.replace(/^(picture|painting|portrait|image|depiction|rendering|scene|landscape)\s+of\s+/, "");
+  s = s.replace(/^(the|a|an)\s+/, "");
+  return s;
+}
+
+function paintAttempt(input) {
+  const norm = normalizePaint(input);
+  const entry = PAINTINGS.find(p =>
+    p.aliases.some(a => normalizePaint(a) === norm));
+  if (!entry) return paragraphs(PAINT_FAIL, "system");
+  paragraphs(entry.text, "system");
+  // a painting realized for the first time steadies the field;
+  // repeated subjects earn nothing, but failed experiments are free
+  // (keyed by first alias, so reordering PAINTINGS won't break saves)
+  const key = entry.aliases[0];
+  if (!state.painted.includes(key)) {
+    state.painted.push(key);
+    adjustCP(noise(5));
+    adjustAP(noise(10));
+  }
+  if (entry.correct) {
+    // hook for the real puzzle answer, once written
+    state.flags.paintingSolved = true;
+  }
+}
+
+/* ---------- drawers ---------- */
+function handleDrawers(words) {
+  const set = DRAWERS[state.roomId];
+  if (!set) return say("There are no drawers here.", "system");
+
+  // furniture named in the command: "open dresser top drawer",
+  // "open bottom drawer of the nightstand"...
+  const furns = Object.keys(set).filter(k => k !== "note");
+  const named = furns.find(k => {
+    const n = ITEMS[k].name.toLowerCase();
+    return words.includes(n) ||
+           n.split(" ").some(w => words.includes(w) && w.length > 2);
+  });
+
+  // resolve the target: named furniture wins, else whatever the
+  // player is standing at, else the room's only piece with drawers
+  let f = named || furns.find(k => k === state.at);
+  if (!f && furns.length === 1) f = furns[0];
+  if (!f) {
+    return say("Open the drawers of which piece of furniture? (" +
+               furns.map(k => "the " + ITEMS[k].name).join(" or ") + ")",
+               "system");
+  }
+  if (state.at !== f) {
+    setAt(f); // naming the piece walks you over to it
+    say("You walk over to the [b]" + ITEMS[f].name + "[/b].", "system");
+  }
+
+  const furn = set[f];
+  const drawers = furn.drawers;
+  const num = Object.keys(drawers).find(n =>
+    drawers[n].names.some(nm => words.includes(nm)));
+  if (!num) return say("Which drawer would you like to open?", "system");
+
+  // a room-level note: which of the room's drawers hides it is rolled
+  // once, then fixed for the rest of the run (never respawns once found)
+  if (set.note) {
+    if (state.drawerNotes[state.roomId] === undefined) {
+      const all = [];
+      for (const kf of Object.keys(set)) {
+        if (kf === "note") continue;
+        for (const n of Object.keys(set[kf].drawers)) all.push(kf + ":" + n);
+      }
+      state.drawerNotes[state.roomId] =
+        all[Math.floor(Math.random() * all.length)];
+    }
+    if (state.drawerNotes[state.roomId] === f + ":" + num &&
+        !state.notes.includes(set.note)) {
+      paragraphs("You found a note:", "system");
+      return collectNote(set.note);
+    }
+  }
+
+  const dr = drawers[num];
+  // hidden loot: each drawer, cabinet, or other searchable gets one
+  // roll — sticky for the rest of the run, never respawns once found
+  const loot = rollSearchLoot(state.roomId + ":" + f + ":" + num);
+  if (loot) {
+    state.drawerLoot[state.roomId + ":" + f + ":" + num] = null;
+    paragraphs((dr && dr.text) || EMPTY_DRAWER, "system");
+    paragraphs("Tucked inside, you have found an item: [b]" +
+               ITEMS[loot].name + "[/b].", "system");
+    takeItem(loot);
+    return;
+  }
+  return paragraphs((dr && dr.text) || EMPTY_DRAWER, "system");
+}
+
+/* every searchable object (drawer, cabinet...) rolls once for hidden
+   loot the first time it is searched: a spagyric of clarity or an
+   incense stick. The roll is fixed for the rest of the run. */
+function rollSearchLoot(key) {
+  if (!(key in state.drawerLoot)) {
+    const r = Math.random();
+    state.drawerLoot[key] = r < 0.10 ? "spagyric_clarity"
+                       : r < 0.20 ? "incense_stick"
+                       : null;
+  }
+  const loot = state.drawerLoot[key];
+  if (!loot) return null;
+  return loot;
+}
+
+/* ---------- proximity: standing at furniture ---------- */
+function approachTarget(words) {
+  return itemsHere().find(id => {
+    const n = ITEMS[id].name.toLowerCase();
+    return words.includes(n) ||
+           n.split(" ").some(w => words.includes(w) && w.length > 2);
+  });
+}
+
+/* ---------- pool reset ---------- */
+/* Clears every pool door's sticky room assignment. Found items and
+   notes persist; pool doors re-roll on their next open. Story data
+   can call resetPools() from any item's onExamine or a TRIGGER. */
+function resetPools() {
+  state.doorAssignments = {};
+}
+
+/* ---------- inventory ---------- */
+/* ---------- sheet music ---------- */
+function collectSheet(id, itemId) {
+  if (state.sheets.includes(id)) return false;
+  state.sheets.push(id);
+  if (itemId) state.taken.push(itemId);
+  say("You have found sheet music for \u201C" + SHEETS[id].name +
+      "\u201D.", "system");
+  adjustAP(noise(5)); // lore items steady alignment
+  renderInventory();
+  checkRoomCleared(state.roomId); // taking it may finish the room
+  return true;
+}
+
+function playSong(id) {
+  const sheet = SHEETS[id];
+  // performing a song for the first time — in this room, on this
+  // instrument — steadies coherence; repeats earn nothing
+  const instr = (state.roomId === "ballroom") ? "organ" : "piano";
+  const key = id + ":" + state.roomId + ":" + instr;
+  if (!state.songsPlayed.includes(key)) {
+    state.songsPlayed.push(key);
+    adjustCP(noise(10));
+  }
+  paragraphs(sheet.text || ("You play " + sheet.name + "."), "system");
+  if (sheet.file) setMusic("song_" + id); // room music resumes on exit
+}
+
+function renderInventory() {
+  sanitizeHands();
+  // every tab is rebuilt on every change; hidden tabs are cheap
+  // (the notes tab is owned by renderNotes, which also shows sheet music)
+  const bagLists = [invLists.items, invLists.consum, invLists.crystal];
+  bagLists.forEach(l => { l.innerHTML = ""; });
+  renderNotes();
+  const empty = !state.inventory.some(id => itemTab(id) !== "notes");
+  if (empty) {
+    bagLists.forEach(l => {
+      const li = document.createElement("li");
+      li.textContent = "(empty)";
+      li.style.cursor = "default";
+      li.style.color = "var(--dim)";
+      l.appendChild(li);
+    });
+    return;
+  }
+  state.inventory.filter(id => itemTab(id) !== "notes").forEach(id => {
+    invLists[itemTab(id)].appendChild(buildItemRow(id));
+  });
+}
+/* ---------- inventory rows ----------
+   Hover or long-press (1s) shows the item's description. Clicking a
+   holdable item opens the hand picker; other items act as before. */
+function buildItemRow(id) {
+  const it = ITEMS[id];
+  const li = document.createElement("li");
+  li.textContent = it.name + (handOf(id) ? " (" + handOf(id) + " hand)" : "");
+  const nm = it.name.toLowerCase();
+  let hint, run;
+  if (it.spagyric) {
+    hint = "Click to drink"; run = () => submitCommand("drink " + nm, false);
+  } else if (it.incense) {
+    hint = "Click to light"; run = () => submitCommand("light " + nm, false);
+  } else if (isHoldable(id)) {
+    hint = handOf(id) ? "Click to put away" : "Click to hold in a hand";
+    run = () => openHandPicker(id);
+  } else {
+    hint = "Click to examine"; run = () => submitCommand("examine " + nm, false);
+  }
+  li.onclick = () => { if (!tipSuppressed) run(); };
+  attachTip(li, () => itemTipHtml(id, hint));
+  return li;
+}
+
+/* hand picker: a small box with Left / Right buttons */
+const handWin = document.getElementById("handwin");
+const handTitle = document.getElementById("handtitle");
+const handBody = document.getElementById("handbody");
+const handBtns = document.getElementById("handbtns");
+let handItem = null, handCloseTimer = null;
+function setHandBox(title, body, buttons) {
+  handTitle.textContent = title;
+  handBody.textContent = body;
+  handBtns.innerHTML = "";
+  buttons.forEach(b => {
+    const btn = document.createElement("button");
+    btn.className = "wide";
+    btn.textContent = b.label;
+    btn.onclick = b.fn;
+    if (b.disabled) btn.disabled = true;
+    handBtns.appendChild(btn);
+  });
+}
+function openHandPicker(id) {
+  state.pendingHold = null; // the box replaces the typed question
+  handItem = id;
+  hideGlyphTip();
+  clearTimeout(handCloseTimer);
+  renderHandChoice();
+  handWin.hidden = false;
+}
+function closeHandPicker() {
+  clearTimeout(handCloseTimer);
+  handWin.hidden = true;
+  handItem = null;
+}
+function renderHandChoice() {
+  const id = handItem;
+  const cur = handOf(id);
+  if (cur) {
+    setHandBox("Your " + ITEMS[id].name,
+      "You are holding it in your " + cur + " hand.", [
+        { label: "Put away", fn: () => { unequip(id); closeHandPicker(); } },
+        { label: "Cancel", fn: closeHandPicker }
+      ]);
+    return;
+  }
+  const lab = h => (h === "left" ? "Left hand" : "Right hand") +
+    (state.hands[h] ? " (" + yourItem(state.hands[h]) + ")" : "");
+  setHandBox("Which hand?", "Hold " + theItem(id) + " in:", [
+    { label: lab("left"),  fn: () => pickHand("left"),
+      disabled: grimoireLocked() },
+    { label: lab("right"), fn: () => pickHand("right") },
+    { label: "Cancel", fn: closeHandPicker }
+  ]);
+}
+function pickHand(hand) {
+  if (hand === "left" && grimoireLocked()) {
+    return setHandBox("Which hand?", grimoireBlock(),
+      [{ label: "Back", fn: renderHandChoice }]);
+  }
+  const id = handItem, old = state.hands[hand];
+  if (old) {
+    setHandBox("Which hand?", "You are already holding " + yourItem(old) +
+      " in that hand. Replace it with " + theItem(id) + "?", [
+        { label: "Replace", fn: () => finishPick(hand) },
+        { label: "Keep it", fn: renderHandChoice }
+      ]);
+    return;
+  }
+  finishPick(hand);
+}
+function finishPick(hand) {
+  const msg = commitHold(handItem, hand);
+  setHandBox("Which hand?", msg, []);
+  handCloseTimer = setTimeout(closeHandPicker, 1200);
+}
+handWin.addEventListener("click", e => { if (e.target === handWin) closeHandPicker(); });
+
+/* ---------- hands & equipping ----------
+   Carrying something is not holding it. Items flagged hold: true (the
+   lantern) and crystals are held in the left or right hand: "equip
+   lantern" asks "Which hand?"; an occupied hand asks before replacing. */
+const HAND_WORDS = { left: "left", l: "left", right: "right", r: "right" };
+function isHoldable(id) {
+  return !!(ITEMS[id] && (ITEMS[id].hold || ITEMS[id].crystal));
+}
+function handOf(id) {
+  return state.hands.left === id ? "left"
+       : state.hands.right === id ? "right" : null;
+}
+function isHeld(id) { return handOf(id) !== null; }
+/* The grimoire is not an inventory item: combat draws it into the
+   left hand automatically and keeps it there until the fight ends. */
+const GRIMOIRE = "grimoire";
+function itemName(id) { return id === GRIMOIRE ? "grimoire" : ITEMS[id].name; }
+function theItem(id)  { return "the " + itemName(id); }
+function yourItem(id) { return "your " + itemName(id); }
+function grimoireLocked() { return state.hands.left === GRIMOIRE; }
+// anything that left the inventory is no longer in a hand
+function sanitizeHands() {
+  ["left", "right"].forEach(h => {
+    const id = state.hands[h];
+    if (id && id !== GRIMOIRE && !state.inventory.includes(id))
+      state.hands[h] = null;
+  });
+}
+// combat begins: whatever is in the left hand is put away
+function drawGrimoire() {
+  if (!state.flags.grimoireFound || grimoireLocked()) return;
+  state.pendingHold = null;
+  closeHandPicker();
+  const prev = state.hands.left;
+  state.handStash = prev || null;
+  state.hands.left = GRIMOIRE;
+  say(prev ? "You put " + yourItem(prev) + " away and draw your grimoire " +
+             "in your left hand."
+           : "You draw your grimoire in your left hand.", "system");
+  renderInventory();
+}
+// combat is over: the grimoire closes and the left hand gets its item back
+function stowGrimoire(quiet) {
+  if (!grimoireLocked()) return;
+  const prev = state.handStash;
+  state.handStash = null;
+  state.hands.left = (prev && state.inventory.includes(prev) &&
+                      state.hands.right !== prev) ? prev : null;
+  if (!quiet) {
+    say(state.hands.left
+      ? "You close your grimoire and take up " + yourItem(state.hands.left) +
+        " again in your left hand."
+      : "You close your grimoire.", "system");
+  }
+  renderInventory();
+}
+function grimoireBlock() {
+  return "Your left hand is holding your grimoire while you are in combat.";
+}
+function handsText() {
+  const l = state.hands.left, r = state.hands.right;
+  if (!l && !r) return "Your hands are empty.";
+  if (l && r) return "You are holding " + yourItem(l) +
+    " in your left hand and " + yourItem(r) + " in your right hand.";
+  return l ? "You are holding " + yourItem(l) + " in your left hand. " +
+             "Your right hand is empty."
+           : "You are holding " + yourItem(r) + " in your right hand. " +
+             "Your left hand is empty.";
+}
+function startEquip(id, hand) {
+  if (!inInventory(id)) {
+    return say(itemsHere().includes(id)
+      ? "You'll need to pick up " + theItem(id) + " first."
+      : "You don't have " + theItem(id) + ".", "system");
+  }
+  if (!isHoldable(id)) {
+    return say("You can't hold " + theItem(id) + " in your hand.", "system");
+  }
+  const cur = handOf(id);
+  if (cur) {
+    return say("You are already holding " + yourItem(id) + " in your " +
+               cur + " hand.", "system");
+  }
+  if (!hand) {
+    state.pendingHold = { stage: "hand", item: id };
+    return say("Which hand?", "system");
+  }
+  placeInHand(id, hand);
+}
+function placeInHand(id, hand) {
+  if (hand === "left" && grimoireLocked()) return say(grimoireBlock(), "system");
+  const old = state.hands[hand];
+  if (old) {
+    state.pendingHold = { stage: "replace", item: id, hand: hand };
+    return say("You are already holding " + yourItem(old) +
+      " in that hand. Replace it with " + theItem(id) + "?", "system");
+  }
+  commitHold(id, hand);
+}
+function commitHold(id, hand) {
+  const old = state.hands[hand];
+  state.pendingHold = null;
+  state.hands[hand] = id;
+  renderInventory();
+  const msg = old ? "You put " + yourItem(old) + " away and hold " +
+                    theItem(id) + " in your " + hand + " hand."
+                  : "You hold it in your " + hand + " hand.";
+  say(msg, "system");
+  return msg;
+}
+function unequip(id, hand) {
+  state.pendingHold = null;
+  const hands = hand ? [hand] : ["left", "right"].filter(h => state.hands[h]);
+  let targets = hands.filter(h => state.hands[h] && (!id || state.hands[h] === id));
+  if (targets.some(h => state.hands[h] === GRIMOIRE)) {
+    // the grimoire cannot be put away mid-fight; anything else can
+    targets = targets.filter(h => state.hands[h] !== GRIMOIRE);
+    if (!targets.length) return say(grimoireBlock(), "system");
+    say(grimoireBlock(), "system");
+  }
+  if (!targets.length) {
+    if (id) return say("You aren't holding " + theItem(id) + ".", "system");
+    return say(hand ? "Your " + hand + " hand is already empty."
+                    : "Your hands are already empty.", "system");
+  }
+  targets.forEach(h => {
+    say("You put " + yourItem(state.hands[h]) + " away.", "system");
+    state.hands[h] = null;
+  });
+  renderInventory();
+}
+// answers to the pending equip prompt; returns true if it consumed input
+function answerEquipPrompt(input) {
+  const p = state.pendingHold;
+  const t = input.replace(/[.,!?;:]/g, " ")
+    .replace(/\b(the|my|your|in|on|hand|please)\b/g, " ")
+    .replace(/\s+/g, " ").trim();
+  if (/^(cancel|never ?mind|forget it|stop)$/.test(t)) {
+    state.pendingHold = null;
+    say("You decide not to.", "system");
+    return true;
+  }
+  if (!inInventory(p.item)) { state.pendingHold = null; return false; }
+  if (p.stage === "hand") {
+    if (HAND_WORDS[t]) { state.pendingHold = null; placeInHand(p.item, HAND_WORDS[t]); return true; }
+  } else {
+    if (/^(yes|y|yeah|yep|ok|okay|sure)$/.test(t)) { commitHold(p.item, p.hand); return true; }
+    if (/^(no|n|nope)$/.test(t)) {
+      const old = state.hands[p.hand];
+      state.pendingHold = null;
+      say("You keep holding " + yourItem(old) + ".", "system");
+      return true;
+    }
+  }
+  // anything else abandons the question and is read as a normal command
+  state.pendingHold = null;
+  return false;
+}
+// "equip lantern", "hold the quartz in my left hand", "unequip right"
+function equipCommand(verb, words) {
+  let hand = null;
+  const rest = [];
+  const skip = ["in", "on", "my", "your", "the", "a", "an", "hand", "with", "to", "it"];
+  words.slice(1).forEach(w => {
+    if (w === "left" || w === "right") hand = w;
+    else if (!skip.includes(w)) rest.push(w);
+  });
+  if (rest.length > 1 && HAND_WORDS[rest[rest.length - 1]] &&
+      rest[rest.length - 1].length === 1) {
+    hand = HAND_WORDS[rest.pop()];
+  }
+  const unequipVerb = ["unequip", "unhold", "unwield", "lower", "stow"].includes(verb);
+  if (unequipVerb) {
+    if (!rest.length || rest.some(w => ["all", "everything", "hands"].includes(w))) {
+      return unequip(null, hand);
+    }
+  } else if (!rest.length) {
+    return say("Equip what?", "system");
+  }
+  const m = n => { n = n.toLowerCase();
+    return rest.join(" ") === n ||
+           n.split(" ").some(w => rest.includes(w) && w.length > 2); };
+  const id = state.inventory.find(i => m(ITEMS[i].name)) || findItem(rest);
+  if (!id) return say("You don't have that.", "system");
+  return unequipVerb ? unequip(id, hand) : startEquip(id, hand);
+}
+
+/* ---------- debug cheat: give <item> ----------
+   Matches an item, note or sheet music by id or name (exact first,
+   then partial) and files it in the right inventory tab. No coherence
+   or alignment changes, no room-cleared checks. */
+function cheatGive(query) {
+  const q = query.trim();
+  const catalog = [];
+  Object.keys(ITEMS).forEach(id => { if (ITEMS[id].take)
+    catalog.push({ kind: "item", id, name: ITEMS[id].name }); });
+  Object.keys(NOTES).forEach(id =>
+    catalog.push({ kind: "note", id, name: NOTES[id].name }));
+  Object.keys(SHEETS).forEach(id =>
+    catalog.push({ kind: "sheet", id, name: SHEETS[id].name }));
+  if (!q) {
+    return say("give what? Try: " +
+      catalog.map(c => c.name).join(", "), "system");
+  }
+  const norm = t => String(t).toLowerCase();
+  const exact = c => norm(c.id) === q || norm(c.name) === q;
+  const partial = c => norm(c.id).includes(q) || norm(c.name).includes(q);
+  const hits = catalog.filter(exact);
+  const found = hits.length ? hits : catalog.filter(partial);
+  if (!found.length) {
+    const fixed = Object.keys(ITEMS).find(id => !ITEMS[id].take &&
+      (norm(id) === q || norm(ITEMS[id].name).includes(q)));
+    return say(fixed ? "(cheat) " + ITEMS[fixed].name + " cannot be carried."
+                     : "(cheat) no item matches \u201C" + q + "\u201D.",
+               "system");
+  }
+  if (found.length > 1) {
+    return say("(cheat) ambiguous, matches: " +
+      found.map(c => c.name).join(", "), "system");
+  }
+  const c = found[0];
+  if (c.kind === "item") {
+    if (state.inventory.includes(c.id))
+      return say("(cheat) you already have the " + c.name + ".", "system");
+    state.inventory.push(c.id);
+    if (!state.taken.includes(c.id)) state.taken.push(c.id);
+    renderInventory();
+    say("(cheat) " + c.name + " added to " + itemTab(c.id) + ".", "system");
+  } else if (c.kind === "note") {
+    if (state.notes.includes(c.id))
+      return say("(cheat) you already have that note.", "system");
+    state.notes.push(c.id);
+    renderNotes();
+    say("(cheat) note \u201C" + c.name + "\u201D added to notes.", "system");
+  } else {
+    if (state.sheets.includes(c.id))
+      return say("(cheat) you already have that sheet music.", "system");
+    state.sheets.push(c.id);
+    renderInventory();
+    say("(cheat) sheet music \u201C" + c.name + "\u201D added to notes.",
+        "system");
+  }
+}
+
+function takeItem(id) {
+  state.taken.push(id);
+  state.inventory.push(id);
+  adjustCP(noise(3)); // finding items steadies coherence
+  renderInventory();
+  checkRoomCleared(state.roomId);
+}
+
+/* ---------- dialogue ---------- */
+let activeDialogue = null; // set while a conversation is running
+
+function startDialogue(dialogueId) {
+  const d = DIALOGUES[dialogueId];
+  if (!d) return say("They have nothing to say.", "system");
+  activeDialogue = dialogueId;
+  showNode(d.first);
+}
+
+function showNode(key) {
+  const d = DIALOGUES[activeDialogue];
+  const node = d.nodes[key];
+  if (!node) return endDialogue();
+  paragraphs(node.text, "speech");
+  choicesEl.innerHTML = "";
+  node.choices.forEach(ch => {
+    const b = document.createElement("button");
+    b.textContent = ch.say;
+    b.onclick = () => {
+      say("> " + ch.say, "choice-picked");
+      if (ch.reply) paragraphs(ch.reply, "system");
+      if (ch.next) showNode(ch.next);
+      else endDialogue();
+    };
+    choicesEl.appendChild(b);
+  });
+  storyEl.scrollTop = storyEl.scrollHeight;
+}
+
+function endDialogue() {
+  activeDialogue = null;
+  choicesEl.innerHTML = "";
+}
+
+/* ---------- parser ---------- */
+function findItem(words) {
+  const match = id => {
+    const n = ITEMS[id].name.toLowerCase();
+    return words.includes(n) ||
+           n.split(" ").some(w => words.includes(w) && w.length > 2);
+  };
+  // what's actually in the room (or carried) always wins over a
+  // same-named object elsewhere in the mansion
+  const ids = Object.keys(ITEMS);
+  return itemsHere().find(match) ||
+         ids.filter(id => state.inventory.includes(id)).find(match) ||
+         ids.find(match);
+}
+function findNpc(words) {
+  return Object.keys(NPCS).find(id =>
+    NPCS[id].name.toLowerCase().split(" ").some(w => words.includes(w) && w.length > 2));
+}
+
+/* ---------- flexible phrasings ----------
+   The exact-phrase TRIGGERS cover the common wordings; this covers the
+   rest, room by room. It receives the punctuation-stripped command and
+   returns true when it handled it (false lets normal parsing go on). */
+const READ_LOOK_VERBS = /^(read|look at|look|examine|inspect|check|open|view|study|browse|peruse|skim|flip through|leaf through|look through|take a look at|have a look at|x)\b/;
+const NOOK_BOOKS = [
+  { id: "constellations", re: /\bconstellations?\b/ },
+  { id: "stranger",       re: /\bstranger\b/ },
+  { id: "red",            re: /\b(red|thick|untitled)\b/ }
+];
+const BARE_BOOK_TITLE = /^(the |a )?(book )?(called |titled )?(constellations?|(the )?stranger( in the mirror)?|(untitled )?(thick )?red( book)?|(untitled )?thick book|untitled book)$/;
+const CANVAS_RE = /\b(canvas|canvases|easel)\b/;
+
+function nookBookId(s) {
+  const b = NOOK_BOOKS.find(b => b.re.test(s));
+  return b ? b.id : null;
+}
+
+/* "put paint on the canvas", "apply some paint to canvas", "use the
+   brush on the canvas", "paint on the canvas", "paint the canvas" */
+function isCanvasPaintPhrase(s) {
+  if (/^(put|apply|add|spread|smear|dab|splash|spatter|dip|use|touch|press)\b/.test(s) &&
+      /\b(paints?|brush|paintbrush|palette|colou?rs?)\b/.test(s) &&
+      CANVAS_RE.test(s)) return true;
+  const m = s.match(/^paint\s+(.*)$/);
+  return !!(m && /^(on |onto |upon |at )?(the |a |an |this |my )?(canvas|canvases|easel)$/.test(m[1]));
+}
+
+/* the standard "examine" result for an item in the room */
+function examineHere(item) {
+  const it = ITEMS[item];
+  setAt(item);
+  recordExamined(item);
+  paragraphs(it.examine || "You see nothing special about it.", "system");
+  if (typeof it.onExamine === "function") it.onExamine();
+  Object.keys(NOTES).forEach(nid => {
+    if (NOTES[nid].foundWith === item && !state.notes.includes(nid)) {
+      collectNote(nid);
+    }
+  });
+}
+
+function interpretNatural(clean, words) {
+  const out = res => { if (res) paragraphs(res, "system"); return true; };
+
+  // ---- the reading nook: books, the chair, the side table's drawer ----
+  if (state.roomId === "east_wing_nook") {
+    const bookId = nookBookId(clean);
+    // "sit in the chair and read a book" (any wording with both)
+    if (/\b(sit|sat|sitting|seat)\b/.test(clean) && /\b(read|reading)\b/.test(clean)) {
+      paragraphs(sitChair(), "system");
+      if (bookId) readBook(bookId);
+      else paragraphs(bookMenu(), "system");
+      return true;
+    }
+    // "look at constellations", "examine the thick red book",
+    // "read the stranger in the mirror in the reading nook"
+    if (bookId && (READ_LOOK_VERBS.test(clean) ||
+        BARE_BOOK_TITLE.test(clean.replace(/^(the|a|an)\s+/, "")))) {
+      readBook(bookId);
+      return true;
+    }
+    // no title given: "read a book", "look at the books", "read"
+    if (READ_LOOK_VERBS.test(clean) &&
+        (/\bbooks?\b/.test(clean) ||
+         /^read( something| anything| one| some)?( (from|off|on|in|at) .*)?$/.test(clean) ||
+         (/^read\b/.test(clean) && /\b(bookshelf|shelf)\b/.test(clean)))) {
+      return out(bookMenu());
+    }
+    // "examine armrest", "feel the armrest", "pull on the armrest"...
+    if (/\barmrests?\b/.test(clean)) return out(openPassage());
+    // the side table's drawer, from anywhere in the room
+    if (/\bdrawers?\b/.test(clean) ||
+        (/^open\b/.test(clean) && /\btable\b/.test(clean))) {
+      if (state.at !== "side_table") {
+        setAt("side_table");
+        say("You walk over to the [b]side table[/b].", "system");
+      }
+      return out(openNookDrawer());
+    }
+  }
+
+  // ---- the dark bedroom: the rug hides a pentagram ----
+  if (state.roomId === "pool_bedroom" && /\b(rug|carpet)\b/.test(clean) &&
+      /^(pick|take|get|grab|lift|raise|move|shift|pull|peel|flip|turn|roll|fold|push|slide|(look|check|search|peek|peer|examine|inspect|x)\s+(under|beneath|underneath|below|behind))\b/.test(clean)) {
+    return out(liftRug());
+  }
+
+  // ---- furniture with drawers: "open the nightstand", "open dresser" ----
+  if (/^open\b/.test(clean) && DRAWERS[state.roomId] &&
+      !/\bdrawers?\b/.test(clean)) {
+    const set = DRAWERS[state.roomId];
+    const named = Object.keys(set).filter(k => k !== "note").some(k => {
+      const n = ITEMS[k].name.toLowerCase();
+      return words.includes(n) ||
+             n.split(" ").some(w => words.includes(w) && w.length > 2);
+    });
+    if (named) { handleDrawers(words); return true; }
+  }
+
+  // ---- the art studio: painting ----
+  if (isCanvasPaintPhrase(clean)) return out(startPainting());
+  const pm = clean.match(/^paint\s+(.+)$/);
+  if (pm) {
+    if (state.roomId !== "pool_art_studio") return out(startPainting());
+    paintAttempt(clean);   // "paint a rainbow", "paint the mansion"
+    return true;
+  }
+
+  // ---- the atrium doors ("mahogany doors", "great doors"...) ----
+  if (state.roomId === "mansion_atrium" && /\bdoors?\b/.test(clean)) {
+    // go/walk/run/head through (or into) the doors, open/push/pull them
+    if (/^(open|push|pull|shove|force|unlock|try|enter|knock)\b/.test(clean) ||
+        /^(go|walk|run|head|step|move)\b.*\b(through|into|in)\b/.test(clean)) {
+      return out(tryExit("n"));
+    }
+    // go/walk/run/head up to the doors
+    if (/^(go|walk|run|head|move|step|approach)\b/.test(clean)) {
+      setAt("doors");
+      return out("You walk over to the [b]" + ITEMS.doors.name + "[/b].");
+    }
+    // look at / examine them, or just type their name
+    const rest = clean.replace(/^(look at|look|examine|inspect|check|x|view|study|search)\s+/, "")
+                      .replace(/^(the|a|an)\s+/, "");
+    if (rest !== clean || /^((great|big|large|heavy|mahogany|iron|double|north)\s+)*doors?$/.test(rest)) {
+      examineHere("doors");
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function handleCommand(raw) {
+  const input = raw.trim().toLowerCase();
+  if (!input) return;
+
+  // dialogue mode: allow numbers to pick choices
+  if (activeDialogue) {
+    const n = parseInt(input, 10);
+    const btns = [...choicesEl.children];
+    if (btns[n - 1]) return btns[n - 1].click();
+    say("Type the number of your choice (1-" + btns.length + ").", "system");
+    return;
+  }
+
+  // death prompt: only yes or no matter
+  if (state.dead) {
+    if (input === "yes") return reincarnate();
+    if (input === "no") {
+      return say("The field holds you. Reincarnate? (yes/no)", "system");
+    }
+    return say("Reincarnate? (yes/no)", "system");
+  }
+
+  // meditation prompt: only yes or no matter
+  if (state.meditating) {
+    if (input === "yes") return doMeditate();
+    if (input === "no") {
+      state.meditating = false;
+      return say("You decide this might not be the time or place",
+                 "system");
+    }
+    return say("Meditate here? Yes/no", "system");
+  }
+
+  // equip prompt ("Which hand?" / "Replace it?"): answers handled here;
+  // anything unrelated drops the question and runs as a normal command
+  if (state.pendingHold && answerEquipPrompt(input)) return;
+
+  // punctuation-tolerant copy of the command for phrase matching:
+  // "Read a book." and "sit in the chair, and read" parse like plain text
+  const clean = input.replace(/["'`\u2018\u2019\u201C\u201D]/g, "")
+                     .replace(/[.,!?;:]/g, " ").replace(/\s+/g, " ").trim();
+  const words = clean.split(" ");
+
+  // while painting, typed input is the subject being attempted
+  if (state.painting) {
+    // some commands put the brush down and are handled normally
+    if (/^(stop|stop painting|done|finish|put (down )?the (paintbrush|brush)|never mind|n|s|e|w)$/.test(input) ||
+        /^(go )?(north|south|east|west|up|down)$/.test(input) ||
+        /^(leave|return|go back|back)$/.test(input)) {
+      state.painting = false;
+      say("You put down the paintbrush.", "system");
+      // fall through to normal handling of that command
+    } else if (isCanvasPaintPhrase(clean)) {
+      return say("You're already at the canvas. What do you want to paint?",
+                 "system");
+    } else {
+      return paintAttempt(input);
+    }
+  }
+
+  // glyph casting: paste the glyph, type its phonetic, or its name
+  const castInput = input.replace(/^cast\s+/, "");
+  const castId = Object.keys(GLYPHS).find(g =>
+    castInput === GLYPHS[g].glyph ||
+    castInput === GLYPHS[g].phonetic ||
+    castInput === GLYPHS[g].name);
+  if (castId) return attemptCast(castId);
+
+  // bare number picks a door in rooms that have numbered doors
+  if (/^\d+$/.test(input) && NUMBERED_DOORS[state.roomId]) {
+    return handleCommand("open door " + input);
+  }
+
+  // standing before numbered doors: turn back, or pick one
+  if (state.doorChoice) {
+    if (/^(turn (back|around)|leave|return|go back|back|north|go north|n)$/.test(input)) {
+      state.doorChoice = null;
+      enterRoom(state.roomId);
+      return;
+    }
+    // any other input abandons the choice and is handled normally
+    state.doorChoice = null;
+  }
+
+  // "go back" and friends: always return the way you came
+  if (/^(turn (back|around)|go back|back|return|leave|retreat)$/.test(input)) {
+    if (state.enemy) return say("You are locked in combat and cannot flee.", "system");
+    if (state.path.length) {
+      const prev = state.path.pop();
+      return enterRoom(prev);
+    }
+    return say("There is nowhere to go back to.", "system");
+  }
+
+  // equipping: items are carried in the pack but held in a hand
+  if (["equip", "hold", "wield", "unequip", "unhold", "unwield", "lower",
+       "stow"].includes(words[0])) {
+    return equipCommand(words[0], words);
+  }
+  if (["hands", "held", "equipped"].includes(words[0]) && words.length === 1) {
+    return say(handsText(), "system");
+  }
+
+  // debug cheat: "give <item>" drops it straight into the inventory
+  if (words[0] === "give") return cheatGive(words.slice(1).join(" "));
+
+  // triggers first (exact phrase)
+  const trig = TRIGGERS[input] || TRIGGERS[clean];
+  if (trig) {
+    const res = trig();
+    if (res) paragraphs(res, "system");
+    return;
+  }
+
+  // flexible phrasings for specific rooms (books, rug, drawers, paint...)
+  if (interpretNatural(clean, words)) return;
+
+  const verb = words[0];
+
+  // saving / loading via typed commands too
+  if (verb === "save") return saveGame();
+  if (verb === "load" || verb === "restore") return loadGame();
+  if (verb === "journal") { openJournal(); return; }
+  if (verb === "meditate" || verb === "meditation") {
+    return startMeditation();
+  }
+  if (verb === "dyslexic") {
+    const on = !document.body.classList.contains("dys");
+    setDyslexic(on);
+    return say("Dyslexic mode: " + (on ? "ON" : "OFF") + ".", "system");
+  }
+
+  // notes: "read note-to-self 1", "read mysterious note", etc.
+  // A keyword from the title is required — a number alone won't match.
+  if (words.some(w => w.includes("note")) || verb === "read") {
+    const note = findNote(words);
+    if (note) return collectNote(note);
+    if (words.some(w => w.includes("note"))) {
+      return say("No note like that is within reach. Try a keyword from " +
+                 "its title.", "system");
+    }
+    // otherwise fall through to other parsers
+  }
+
+  // drawers: "open drawer 2", "open the top drawer of the nightstand"...
+  if (words.some(w => w.startsWith("drawer"))) {
+    return handleDrawers(words);
+  }
+
+  // numbered doors: "enter door 2", "open middle door", "go through 3rd door"...
+  // (only in rooms that actually have numbered doors)
+  if (NUMBERED_DOORS[state.roomId] &&
+      words.includes("door") && ["enter","open","go","use","try","through"].some(v => words.includes(v))) {
+    const doorNums = { 1:["1","one","first","left"], 2:["2","two","second","middle","center"],
+                       3:["3","three","third","right","last"] };
+    let picked = null;
+    for (const n of Object.keys(doorNums)) {
+      if (doorNums[n].some(w => words.includes(w))) { picked = parseInt(n, 10); break; }
+    }
+    if (picked === null) return say("Which door? (Try: door 1, 2, or 3.)", "system");
+    const doors = NUMBERED_DOORS[state.roomId];
+    if (!doors) return say("There are no doors here.", "system");
+    let dest = doors[picked];
+
+    // "pool" doors: random draw from POOLS, fixed on first open
+    if (dest === "pool") {
+      const pool = POOLS[state.roomId] || [];
+      if (!pool.length) return paragraphs(
+        "[FILLER] The door is shut, and does not open. (No pool rooms " +
+        "have been written yet.)", "system");
+      if (!state.doorAssignments[state.roomId]) state.doorAssignments[state.roomId] = {};
+      if (!state.doorAssignments[state.roomId][picked]) {
+        // a room can only be drawn once per corridor; once every room
+        // in the pool has been used, remaining doors stay shut
+        const taken = Object.values(state.doorAssignments[state.roomId]);
+        const fresh = pool.filter(r => !taken.includes(r));
+        if (!fresh.length) return paragraphs(
+          "[TEMP] The door is shut, and does not open. (Every room in " +
+          "this corridor's pool has already been drawn — this door " +
+          "stays closed until the pool grows.)", "system");
+        state.doorAssignments[state.roomId][picked] =
+          fresh[Math.floor(Math.random() * fresh.length)];
+      }
+      dest = state.doorAssignments[state.roomId][picked];
+    }
+
+    // a "locked" draw: the door is locked and cannot be opened
+    if (dest === "locked") {
+      return say("This door is locked and cannot be opened.", "system");
+    }
+
+    if (!dest) return paragraphs(
+      "[FILLER] The door is shut, and does not open. (This room hasn't " +
+      "been written yet — it will open when it is.)", "system");
+    return enterRoom(dest);
+  }
+
+  // approach furniture: "go to the nightstand", "approach dresser"...
+  if (["go","walk","run","head","move","step","stand","approach"].includes(verb) &&
+      (verb === "approach" || words.includes("to") || words.includes("at") ||
+       words.includes("toward") || words.includes("towards"))) {
+    const target = approachTarget(words);
+    if (target && !DIRWORDS[words[words.length - 1]]) {
+      setAt(target);
+      return say("You walk over to the [b]" + ITEMS[target].name + "[/b].", "system");
+    }
+    // not a furniture target — fall through to movement below
+  }
+
+  // movement
+  if (["go","walk","run","head","climb","enter"].includes(verb) || DIRWORDS[verb]) {
+    const dirWord = DIRWORDS[verb] ? verb : words.find(w => DIRWORDS[w]);
+    if (!dirWord) return say("Go where?", "system");
+    const res = tryExit(DIRWORDS[dirWord]);
+    if (res) paragraphs(res, "system");
+    return;
+  }
+
+  // examining "doors" in a room with numbered doors asks which door
+  if (/^examine|^look|^look at|^inspect|^check|^search|^x\b/.test(input) &&
+      /\bdoors?\b/.test(input) && NUMBERED_DOORS[state.roomId]) {
+    return say(doorPrompt(state.roomId), "system");
+  }
+
+  if (["look","l"].includes(verb) && words.length === 1) {
+    enterRoom(state.roomId);
+    return;
+  }
+  if (["look","examine","x","inspect","read","check","search"].includes(verb)) {
+    const item = findItem(words.slice(1));
+    if (item) {
+      const it = ITEMS[item];
+      if (!itemsHere().includes(item) && !(it.take && inInventory(item))) {
+        return paragraphs("You don't see that here.", "system");
+      }
+      // examining something in the room puts the player at it
+      if (itemsHere().includes(item)) {
+        setAt(item);
+        recordExamined(item);
+      }
+      // sheet music: examining it collects it
+      if (it.sheet) {
+        collectSheet(it.sheet, item);
+        return;
+      }
+      paragraphs(it.examine || "You see nothing special about it.", "system");
+      // an item may trigger an action when examined (see onExamine)
+      if (typeof it.onExamine === "function") it.onExamine();
+      // a note may be hidden with this item — found on examination
+      Object.keys(NOTES).forEach(nid => {
+        if (NOTES[nid].foundWith === item && !state.notes.includes(nid)) {
+          collectNote(nid);
+        }
+      });
+      return;
+    }
+    const npc = findNpc(words.slice(1));
+    if (npc && (room().npcs || []).includes(npc)) {
+      return paragraphs(NPCS[npc].examine || "They give you a long look back.", "system");
+    }
+    return say("You don't see anything like that here.", "system");
+  }
+
+  if (["take","get","grab","pick"].includes(verb)) {
+    const item = findItem(words.slice(1));
+    if (!item) return say("Take what?", "system");
+    if (!itemsHere().includes(item)) {
+      return paragraphs(inInventory(item)
+        ? "You already have the " + ITEMS[item].name + "."
+        : "There's no " + ITEMS[item].name + " here.", "system");
+    }
+    // sheet music is collected, not carried like an object
+    if (ITEMS[item].sheet) {
+      collectSheet(ITEMS[item].sheet, item);
+      return;
+    }
+    if (!ITEMS[item].take) return paragraphs("The " + ITEMS[item].name +
+      " stays where it is. It is part of this place.", "system");
+    // hidden items are never taken directly: "take" routes through
+    // their own discovery mechanic (the dark corner, the drawer...)
+    if (ITEMS[item].hidden && !state.taken.includes(item)) {
+      if (typeof ITEMS[item].gate === "function") {
+        const gated = ITEMS[item].gate();
+        if (gated) paragraphs(gated, "system");
+        return;
+      }
+      return paragraphs("You don't see that here.", "system");
+    }
+    takeItem(item);
+    return paragraphs("Taken: [b]" + ITEMS[item].name + "[/b].", "system");
+  }
+
+  // playing instruments and found sheet music
+  if (verb === "play") {
+    const norm = input.toLowerCase().replace(/^play\s+/, "")
+      .replace(/[!?.,;:'"/]/g, "").trim();
+    // a song from collected sheet music (piano here, organ in ballroom)
+    const songId = Object.keys(SHEETS).find(id =>
+      state.sheets.includes(id) &&
+      norm.replace(/^the\s+/, "")
+          .includes(SHEETS[id].name.toLowerCase()
+            .replace(/[!?.,;:'"/]/g, "")));
+    if (songId) {
+      if (state.roomId === "pool_music_room" || state.roomId === "ballroom") {
+        return playSong(songId);
+      }
+      return say("There is no instrument here to play it on.", "system");
+    }
+    if (words.includes("guitar")) {
+      if (state.roomId !== "pool_music_room") return say("There is no guitar here.", "system");
+      return paragraphs("You strum the guitar, but it sounds awful. " +
+        "It's out of tune and the strings are rusted.", "system");
+    }
+    if (words.includes("piano")) {
+      if (state.roomId !== "pool_music_room") return say("There is no piano here.", "system");
+      const lines = [
+        "You pull back the piano bench and take a seat. It makes an odd " +
+        "sound as you put your weight on it. Your fingers rest " +
+        "comfortably on the cold ivory keys as you think about what " +
+        "song you want to play..."
+      ];
+      // sitting down reveals the sheet on the shelf, once
+      const revealed = !state.sheets.includes("astrals_song");
+      if (revealed) {
+        lines.push("There is a piece of sheet music on the shelf " +
+                   "titled \u201CAstral's Song\u201D.");
+      }
+      paragraphs(lines, "system");
+      if (revealed) collectSheet("astrals_song");
+      return;
+    }
+    if (words.includes("organ")) {
+      if (state.roomId !== "ballroom") return say("There is no organ here.", "system");
+      return paragraphs("You take a seat on the velvet bench, letting " +
+        "your eyes wander upward at the enormous pipes as you think " +
+        "about what song you want to play...", "system");
+    }
+    // fall through if the verb matched nothing
+  }
+
+  if (["inventory","inv","i","items"].includes(verb) && words.length === 1) {
+    const invText = state.inventory.map(id => ITEMS[id].name);
+    const sheetText = state.sheets.map(id => "sheet music for \u201C" +
+      SHEETS[id].name + "\u201D");
+    const all = invText.concat(sheetText);
+    if (!all.length) return say("You are carrying nothing.", "system");
+    say("You are carrying: " + all.join(", ") + ".", "system");
+    if (state.inventory.some(isHoldable)) say(handsText(), "system");
+    return;
+  }
+
+  if (["talk","speak","ask","greet","hello","hi"].includes(verb)) {
+    const npc = findNpc(words.slice(1)) || (room().npcs || [])[0];
+    if (npc && (room().npcs || []).includes(npc)) {
+      return startDialogue(NPCS[npc].dialogue);
+    }
+    return say("There is no one here to talk to.", "system");
+  }
+
+  if (verb === "use") {
+    const item = findItem(words.slice(1));
+    if (item && inInventory(item)) {
+      return say("Try being more specific: [i]use " + ITEMS[item].name +
+        " on something[/i], or examine it.", "system");
+    }
+    return say("You can't use that.", "system");
+  }
+
+  if (["help","?"].includes(verb)) {
+    return paragraphs([
+      "Commands: go north/south/east/west/up/down · look · examine [thing] · " +
+      "take [thing] · go/walk/run to [thing] (stand at furniture) · open [drawer] · " +
+      "talk to [someone] · use [thing] · equip [thing] (held in a hand) · read [keyword] · inventory · " +
+      "journal · save · load.",
+      "On phones, use the compass buttons. On desktop, arrow keys also move you."
+    ], "system");
+  }
+
+  say("You're not sure how to do that. (Type [i]help[/i] for commands.)", "system");
+}
+
+/* ---------- wiring ---------- */
+/* the player's own echoed words — they fray at dangerous levels */
+function makeEcho(raw) {
+  const line = document.createElement("p");
+  line.className = "choice-picked";
+  const clean = "> " + raw.trim();
+  const gt = echoTier();
+  if (gt) {
+    const esc = clean.replace(/&/g, "&amp;")
+                     .replace(/</g, "&lt;")
+                     .replace(/>/g, "&gt;");
+    line.innerHTML = glitchify(esc);
+    line.querySelectorAll("span.flk").forEach(sp => {
+      setTimeout(() => { sp.textContent = sp.dataset.clean; },
+                 300 + Math.floor(Math.random() * 1200));
+    });
+  } else {
+    line.textContent = clean;
+  }
+  return line;
+}
+
+function echoCommand(raw) {
+  storyEl.appendChild(makeEcho(raw));
+  storyEl.scrollTop = storyEl.scrollHeight;
+}
+
+/* THE one path every player action takes — typed commands, compass
+   buttons, arrow keys, the Look button, glyph and inventory clicks.
+   A button is just a typed command that doesn't echo itself, so there
+   is no behavioral difference between the two. */
+function submitCommand(raw, echo) {
+  const prevRoom = state.roomId;
+  if (echo) echoCommand(raw);
+  // the Entity materializes on the first prompt after the grimoire —
+  // no matter what that prompt was
+  if (checkFirstEncounter()) return;
+  runTurn(() => handleCommand(raw));
+  // the field leaks in while the player explores an uncleared room
+  randomEncounterCheck();
+  // if the command moved us to a new room, the room description cleared
+  // the echo — re-add it right under the room title
+  if (echo && state.roomId !== prevRoom && storyEl.children.length > 1) {
+    storyEl.insertBefore(makeEcho(raw), storyEl.children[1]);
+  }
+}
+
+function doGo() {
+  const raw = cmdEl.value;
+  if (!raw.trim()) return;
+  cmdEl.value = "";
+  submitCommand(raw, true);
+}
+
+document.getElementById("go").onclick = doGo;
+cmdEl.addEventListener("keydown", e => { if (e.key === "Enter") doGo(); });
+
+/* compass buttons and arrow keys: the same as typing the direction */
+const DIR_COMMANDS = { n: "north", s: "south", e: "east", w: "west",
+                       u: "up", d: "down" };
+function moveTurn(dir) {
+  submitCommand(DIR_COMMANDS[dir] || dir, false);
+}
+document.querySelectorAll(".dir").forEach(b =>
+  b.addEventListener("click", () => moveTurn(b.dataset.dir)));
+
+document.getElementById("lookbtn").onclick = () => submitCommand("look", false);
+document.getElementById("savebtn").onclick = saveGame;
+document.getElementById("loadbtn").onclick = loadGame;
+
+/* ---------- journal ---------- */
+const JOURNAL_KEY = "asylum_journal_v1";
+const journalEl    = document.getElementById("journal");
+const journalText  = document.getElementById("journaltext");
+
+function loadJournalText() {
+  try {
+    journalText.value = localStorage.getItem(JOURNAL_KEY) || "";
+  } catch (e) {
+    journalText.value = "";
+    journalText.placeholder =
+      "The journal can't be stored here. It will work once the game is " +
+      "hosted or opened as a normal page in a browser.";
+  }
+}
+function saveJournalText() {
+  try { localStorage.setItem(JOURNAL_KEY, journalText.value); } catch (e) {}
+}
+let journalTimer = null;
+journalText.addEventListener("input", () => {
+  clearTimeout(journalTimer);
+  journalTimer = setTimeout(saveJournalText, 500); // autosave, debounced
+});
+
+function openJournal() {
+  journalEl.hidden = false;
+  journalText.focus();
+}
+function closeJournal() {
+  journalEl.hidden = true;
+  saveJournalText();
+  cmdEl.focus();
+}
+document.getElementById("journalbtn").onclick = openJournal;
+document.getElementById("journalclose").onclick = closeJournal;
+journalEl.addEventListener("click", e => { if (e.target === journalEl) closeJournal(); });
+
+/* ---------- inventory + grimoire windows ---------- */
+const invEl  = document.getElementById("invwin");
+const grimEl = document.getElementById("grimwin");
+
+function openInv() {
+  invEl.hidden = false;
+  closeGrim();
+}
+function closeInv() {
+  closeHandPicker();
+  invEl.hidden = true;
+  hideGlyphTip();
+  cmdEl.focus();
+}
+function openGrim() {
+  grimEl.hidden = false;
+  closeInv();
+}
+function closeGrim() {
+  grimEl.hidden = true;
+  hideGlyphTip();
+}
+
+/* tab switching: one panel list per tab, others hidden */
+function bindTabs(winEl, groups) {
+  winEl.querySelectorAll(".tabbtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      winEl.querySelectorAll(".tabbtn").forEach(b =>
+        b.classList.toggle("active", b === btn));
+      winEl.querySelectorAll(".tablist").forEach(l =>
+        { l.hidden = true; });
+      const target = document.getElementById(btn.dataset.tab);
+      if (target) target.hidden = false;
+    });
+  });
+}
+bindTabs(invEl, invLists);
+bindTabs(grimEl, grimLists);
+
+document.getElementById("invbtn").onclick = openInv;
+document.getElementById("invclose").onclick = closeInv;
+invEl.addEventListener("click", e => { if (e.target === invEl) closeInv(); });
+document.getElementById("grimbtn").onclick = openGrim;
+document.getElementById("grimclose").onclick = closeGrim;
+grimEl.addEventListener("click", e => { if (e.target === grimEl) closeGrim(); });
+document.addEventListener("keydown", e => {
+  if (!gameStarted) return;
+  if (e.key === "Escape" && !handWin.hidden) return closeHandPicker();
+  if (e.key === "Escape" && !journalEl.hidden) closeJournal();
+});
+loadJournalText();
+
+/* ---------- journal corruption ----------
+   Below 10 coherence the field starts eating the player's own
+   journal: random letters are permanently replaced by noise. The
+   damage is written into the journal itself — only the player can
+   repair it, letter by letter. */
+const JOURNAL_NOISE = "@#$&_-()=%+?*!~^/\\|<>{}[];:'\",.0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+function corruptJournal() {
+  if (state.cp > 10) return;
+  // the journal box itself is the source of truth: it holds what the
+  // player sees (and what the next save will write), even when browser
+  // storage is unavailable or the journal window is closed
+  const text = journalText.value;
+  if (!text) return;
+  // 5% of letters per turn at 10CP, ramping to 20% at 0CP
+  const frac = 0.05 + (10 - Math.max(0, state.cp)) * 0.015;
+  let out = "", corrupted = 0;
+  for (const c of text) {
+    if (/[a-zA-Z]/.test(c) && Math.random() < frac) {
+      // always a different keyboard character: letter, number or symbol
+      let n;
+      do { n = JOURNAL_NOISE[Math.floor(Math.random() * JOURNAL_NOISE.length)]; }
+      while (n === c);
+      out += n;
+      corrupted++;
+    } else {
+      out += c;
+    }
+  }
+  if (!corrupted) return;
+  // keep the cursor where the player left it if the journal is open
+  const a = journalText.selectionStart, b = journalText.selectionEnd;
+  journalText.value = out;
+  if (!journalEl.hidden) {
+    try { journalText.setSelectionRange(a, b); } catch (e) {}
+  }
+  // write the damage through, replacing any pending (clean) autosave
+  clearTimeout(journalTimer);
+  saveJournalText();
+}
+
+const KEYMAP = { ArrowLeft: "w", ArrowRight: "e", ArrowUp: "n", ArrowDown: "s" };
+document.addEventListener("keydown", e => {
+  if (!gameStarted || !journalEl.hidden) return; // not while the journal is open
+  const ae = document.activeElement;
+  // arrows work from the command line only while it's empty; once you've typed
+  // something they edit your text. Other text fields keep their own cursor keys.
+  if (ae === cmdEl) { if (cmdEl.value !== "") return; }
+  else if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) return;
+  const dir = KEYMAP[e.key];
+  if (dir) {
+    e.preventDefault(); // keep up/down from scrolling the page
+    moveTurn(dir);
+  }
+});
+
+/* ---------- safety net: show any script error in the story panel ---------- */
+window.onerror = function (msg, src, line) {
+  const p = document.createElement("p");
+  p.style.color = "#d98a8a";
+  p.textContent = "[engine error] " + msg + " (line " + line + ")";
+  storyEl.appendChild(p);
+  return false;
+};
+
+/* ---------- title screen & dyslexic mode ---------- */
+const titleScreen = document.getElementById("titlescreen");
+const dysBtn     = document.getElementById("dysbtn");
+const DYS_KEY    = "asylum_dyslexic_v1";
+let gameStarted  = false;
+
+function setDyslexic(on) {
+  document.body.classList.toggle("dys", on);
+  dysBtn.textContent = "Dyslexic mode: " + (on ? "ON" : "OFF");
+  try { localStorage.setItem(DYS_KEY, on ? "1" : "0"); } catch (e) {}
+}
+let dysOn = false;
+try { dysOn = localStorage.getItem(DYS_KEY) === "1"; } catch (e) {}
+setDyslexic(dysOn);
+
+dysBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  setDyslexic(!document.body.classList.contains("dys"));
+});
+
+function beginGame() {
+  if (gameStarted) return;
+  gameStarted = true;
+  titleScreen.hidden = true;
+  enterRoom(state.firstRoom);
+}
+titleScreen.addEventListener("click", e => {
+  if (dysBtn.contains(e.target)) return;
+  beginGame();
+});
+document.addEventListener("keydown", e => {
+  if (!titleScreen.hidden) {
+    e.preventDefault();
+    beginGame();
+  }
+});
+
+/* ---------- save / load ---------- */
+const SAVE_KEY = "asylum_save_v1";
+
+function saveGame() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      roomId: state.roomId,
+      inventory: state.inventory,
+      // combat is never saved mid-fight: the grimoire goes back
+      hands: { left: grimoireLocked() ? state.handStash : state.hands.left,
+               right: state.hands.right },
+      taken: state.taken,
+      unlocked: state.unlocked,
+      doorAssignments: state.doorAssignments,
+      notes: state.notes,
+      at: state.at,
+      path: state.path,
+      painting: state.painting,
+      drawerNotes: state.drawerNotes,
+      drawerLoot: state.drawerLoot,
+      turns: state.turns,
+      lastMeditate: state.lastMeditate,
+      sheets: state.sheets,
+      cp: state.cp,
+      ap: state.ap,
+      grimoire: state.grimoire,
+      resDist: state.resDist,
+      resLock: state.resLock,
+      examined: state.examined,
+      clearedRooms: state.clearedRooms,
+      clearedFirstTry: state.clearedFirstTry,
+      visited: state.visited,
+      revisited: state.revisited,
+      revisitCounts: state.revisitCounts,
+      loopHits: state.loopHits,
+      songsPlayed: state.songsPlayed,
+      painted: state.painted,
+      flags: state.flags
+    }));
+    say("[i]Game saved.[/i]", "system");
+  } catch (e) {
+    say("[i]Saving is unavailable here. Saves work once the game is " +
+        "hosted or opened as a normal page in a browser.[/i]", "system");
+  }
+}
+
+function loadGame() {
+  let data = null;
+  try {
+    data = localStorage.getItem(SAVE_KEY);
+  } catch (e) {}
+  if (!data) return say("[i]No saved game found.[/i]", "system");
+  try {
+    const s = JSON.parse(data);
+    state.roomId = s.roomId;
+    state.inventory = s.inventory || [];
+    state.hands = { left: (s.hands && s.hands.left) || null,
+                    right: (s.hands && s.hands.right) || null };
+    state.pendingHold = null; // prompts are never restored
+    state.handStash = null;
+    state.taken = s.taken || [];
+    state.unlocked = s.unlocked || [];
+    state.doorAssignments = s.doorAssignments || {};
+    state.notes = s.notes || [];
+    state.at = s.at || null;
+    state.path = s.path || [];
+    state.painting = !!s.painting;
+    state.drawerNotes = s.drawerNotes || {};
+    state.drawerLoot = s.drawerLoot || {};
+    state.turns = (typeof s.turns === "number") ? s.turns : 0;
+    state.lastMeditate = (typeof s.lastMeditate === "number")
+      ? s.lastMeditate : -99;
+    state.sheets = s.sheets || [];
+    state.cp = (typeof s.cp === "number") ? s.cp : 50;
+    state.ap = (typeof s.ap === "number") ? s.ap : 0;
+    state.grimoire = s.grimoire || [];
+    state.resDist = s.resDist || 0;
+    state.resLock = s.resLock || null;
+    state.enemy = null;        // combat is never saved mid-fight
+    state.ward = false;
+    state.playerSkip = false;
+    state.lastCast = null;
+    state.dead = false;
+    state.examined = s.examined || {};
+    state.clearedRooms = s.clearedRooms || [];
+    state.clearedFirstTry = s.clearedFirstTry || [];
+    state.meditating = false; // prompts are never restored
+    state.visited = s.visited || [];
+    state.revisited = s.revisited || [];
+    state.revisitCounts = s.revisitCounts || {};
+    state.loopHits = s.loopHits || {};
+    state.songsPlayed = s.songsPlayed || [];
+    state.painted = s.painted || [];
+    state.doorChoice = null; // door choices are never restored
+    state.flags = s.flags || {};
+    endDialogue();
+    renderInventory();
+    renderNotes();
+    renderGrimoire();
+    renderStats();
+    enterRoom(state.roomId);
+    say("[i]Game loaded.[/i]", "system");
+  } catch (e) {
+    say("[engine error] The saved game could not be loaded.", "system");
+  }
+}
+
+/* ---------- begin ---------- */
+renderInventory();
+renderNotes();
+renderGrimoire();
+renderStats();
+// the game itself starts when the title screen is dismissed
+</script>
+</body>
+</html>
